@@ -105,12 +105,20 @@ silently passing them would hide the roadmap. Promotion pending->gate is MANUAL.
 auto-committed by scripts) records per-round snapshots + the B2 anchor. Like
 regression cases, it is evaluation/tracking state only.
 
-**Forbidden**: `train_reranker.py` must never read `regression_cases.yaml` or
-`ledger.json`. Cases and ledger are exam/score-keeping artifacts; training on
-them turns gates into rubber stamps.
+**Forbidden**: `train_reranker.py` must never read `ledger.json`. The ledger
+is score-keeping state; training on it turns gates into rubber stamps.
+
+**Refined (2026-06-29, V1 step 2)**: `train_reranker.py` may read
+`regression_cases.yaml` ONLY for the case `query_id`/`doc_id` denylist to
+enforce B+C isolation when `--case-sets` is set. This is the one narrow,
+documented exception: train reads case IDS for isolation, NEVER case ROWS as
+training data. Case rows are exam questions; `case_sets` (mined samples) are
+the training data, physically separate and B+C isolated from cases.
 
 **Why**: preserves the core "remembers its mistakes" value — gates must stay
-exam questions the model has not trained on.
+exam questions the model has not trained on. The denylist exception exists so
+that mined training samples can be defensively checked against case IDs at
+load time, preventing accidental leakage.
 
 ## Contract: B2 anchor must degrade gracefully when absent
 
@@ -122,3 +130,43 @@ silently.
 
 **Why**: a fresh state (or first run) has no baseline; treating "no baseline" as
 a regression would block falsely. B is reported, not exit-blocking, in V1.
+
+## Contract: case_sets are committed, derived, B+C-isolated training data
+
+**What** (added 2026-06-29, V1 step 2): `examples/fiqa/case_sets/` contains
+mined training samples for `pending` regression cases. Each `<case_id>.csv`
+has the same column schema as `query_doc_examples.csv` plus a
+`source_case_id` column. `manifest.json` records mining parameters and
+per-case counts.
+
+**Properties**:
+- **Committed** (NOT gitignored) — derived and regeneratable via
+  `mine_case_sets.py`, committed for traceability (like the ledger).
+- **Schema-compatible** — same columns as the main CSV so `train_reranker.py`
+  reads them uniformly. The `source_case_id` column is dropped at load; it
+  is for traceability, not training.
+- **B+C isolated** — no mined row's `query_id` equals any case's `query_id`
+  (B), and no mined row's `doc_id` equals any case's `must_include`/
+  `must_not_include` `doc_id` (C). Enforced at mining time AND re-checked
+  defensively at train load time.
+- **Training data, NOT exam questions** — case_sets are physically separate
+  from `regression_cases.yaml` and `ledger.json`. They feed the train split
+  only (split forced to "train"); they never enter validation/test.
+
+**Mining rule** (a+b+c intersection): semantic similarity to the case's query
+(all-MiniLM-L6-v2, top-K), same failure shape (hard negative at
+`dense_rank <= SHAPE_RANK`, positive at `dense_rank >= SHAPE_POS_GAP`), and
+same `failure_type`. `sentence-transformers` is a build dependency, not
+runtime.
+
+**Forbidden**: feeding case ROWS (from `regression_cases.yaml`) into training.
+Case rows are exam questions. Only mined case_sets (B+C isolated) may enter
+training, and only via `--case-sets`.
+
+**Why**: the closed-loop "textbook path" attacks pending cases with same-pattern
+mined samples while keeping the cases themselves as exam questions. B+C
+isolation ensures the mined samples don't leak the exam answers.
+
+**Pipeline-validation caveat**: step-2 attack results under heuristic labels
+are pipeline-validation grade, not benchmark. They test whether the mechanics
+work, not whether the attack credibly moves a pending case.

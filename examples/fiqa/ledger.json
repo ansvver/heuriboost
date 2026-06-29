@@ -48,6 +48,51 @@
         }
       ],
       "vs_anchor": null
+    },
+    {
+      "round_id": "2026-06-29T08:02:12Z",
+      "split": "validation",
+      "global": {
+        "ndcg@10": 0.8359121933206255,
+        "mrr@10": 0.8791666666666667
+      },
+      "cases": [
+        {
+          "case_id": "fiqa_financial_security_definition",
+          "status": "gate",
+          "passed": true
+        },
+        {
+          "case_id": "fiqa_non_homeowners_house_insurance",
+          "status": "gate",
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_solicitation_of_security",
+          "status": "pending",
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_business_expenses_no_income",
+          "status": "pending",
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_combined_contribution_limits",
+          "status": "pending",
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_aggressive_roth_401k_taxable",
+          "status": "pending",
+          "passed": false
+        }
+      ],
+      "vs_anchor": {
+        "ndcg@10": -0.017521904958916923,
+        "regressed": true
+      },
+      "case_sets_used": true
     }
   ]
 }

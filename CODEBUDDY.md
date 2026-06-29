@@ -42,6 +42,12 @@ Train the demo reranker:
 python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output
 ```
 
+Train with mined case_sets folded into the train split (V1 step 2 closed loop):
+
+```bash
+python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --case-sets examples/fiqa/case_sets --regression-cases examples/fiqa/regression_cases.yaml
+```
+
 Evaluate and run regression gates:
 
 ```bash
@@ -188,12 +194,13 @@ skills/heuriboost-rag/
   SKILL.md
   requirements.txt
   requirements-build.txt
-  scripts/{common.py,inspect_rag_repo.py,validate_dataset.py,train_reranker.py,eval_reranker.py,regression_ledger.py,build_fiqa_csv.py}
+  scripts/{common.py,inspect_rag_repo.py,validate_dataset.py,train_reranker.py,eval_reranker.py,regression_ledger.py,mine_case_sets.py,build_fiqa_csv.py}
   templates/{query_doc_examples.csv,regression_cases.yaml,feature_recipes.yaml,promotion_gate.yaml}
 examples/fiqa/
   query_doc_examples.csv
   regression_cases.yaml
   ledger.json
+  case_sets/{manifest.json,<case_id>.csv}
   DATA_CARD.md
 docs/specs/
   ADAPTIVE_XGBOOST_HEURISTIC_SPEC.md
@@ -258,6 +265,24 @@ qd_reranker/
 - Promotion pending -> gate is always manual (interactive confirmation).
 - Anti-leak invariant preserved: `train_reranker.py` never loads regression
   cases or the ledger.
+
+## V1 Case Sets Mining (implemented 2026-06-29, step 2)
+
+- `mine_case_sets.py` mines same-pattern training samples for each `pending`
+  case using the a+b+c intersection rule (semantic similarity + failure shape
+  + failure_type match). B+C isolation is enforced at mining time.
+- `train_reranker.py --case-sets <dir-or-file>` merges mined rows into the
+  TRAIN split only. A defensive B+C re-check runs at load time using the case
+  query_id/doc_id denylist.
+- **Refined anti-leak contract**: `train_reranker.py` may read
+  `regression_cases.yaml` ONLY for the case query_id/doc_id denylist to
+  enforce B+C isolation. Case ROWS never enter training. `case_sets` (mined
+  samples) ARE training data, B+C isolated from cases. `train_reranker.py`
+  still never reads `ledger.json`.
+- `eval_reranker.py --case-sets-used` tags the ledger round; `summary()`
+  prints "round N used case_sets" when true.
+- `case_sets` are committed under `examples/fiqa/case_sets/` (derived,
+  regeneratable via `mine_case_sets.py`, NOT gitignored).
 
 ## Future Decisions Before Expanding Beyond V0
 

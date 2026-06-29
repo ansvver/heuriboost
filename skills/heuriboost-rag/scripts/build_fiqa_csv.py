@@ -348,6 +348,55 @@ def select_query_ids(qrels_for_split: dict[str, set[str]], cap: int) -> list[str
     return sorted(qrels_for_split.keys())[:cap]
 
 
+def dump_query_embeddings(
+    cache_dir: str,
+    selected: dict[str, list[str]],
+    queries: dict[str, str],
+    encoder,
+) -> None:
+    """Dump per-query MiniLM embeddings to ``<cache_dir>/query_embeddings.npz``.
+
+    This is an optional convenience: ``mine_case_sets.py`` reuses this cache to
+    avoid a second encoding pass. If it fails, mining falls back to encoding on
+    the fly, so a failure here is non-fatal (warned on stderr).
+    """
+    import numpy as np
+
+    query_ids: list[str] = []
+    query_texts: list[str] = []
+    for query_ids_for_split in selected.values():
+        for qid in query_ids_for_split:
+            text = queries.get(qid)
+            if text:
+                query_ids.append(qid)
+                query_texts.append(text)
+
+    if not query_ids:
+        return
+
+    try:
+        embeddings = encoder.encode(
+            query_texts,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
+        cache_path = Path(cache_dir) / "query_embeddings.npz"
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(
+            cache_path,
+            query_ids=np.array(query_ids),
+            embeddings=np.asarray(embeddings),
+        )
+        print(
+            f"Dumped {len(query_ids)} query embeddings to {cache_path} "
+            "(reused by mine_case_sets.py)",
+            file=sys.stderr,
+        )
+    except Exception as exc:
+        print(f"build_fiqa_csv: failed to dump query embeddings: {exc}", file=sys.stderr)
+
+
 def build(args) -> None:
     _require_build_deps()
 
@@ -451,6 +500,10 @@ def build(args) -> None:
         f"{sum(len(v) for v in selected.values())} queries to {output_path}",
         file=sys.stderr,
     )
+
+    # Dump query embeddings so mine_case_sets.py can reuse them without a
+    # second encoding pass. Optional: mining works without it.
+    dump_query_embeddings(cache_dir, selected, queries, encoder)
 
 
 def parse_args(argv=None) -> argparse.Namespace:

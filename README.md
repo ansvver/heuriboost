@@ -96,6 +96,9 @@ evidence hits, and selected V0 feature contrasts.
 │       ├── query_doc_examples.csv
 │       ├── regression_cases.yaml
 │       ├── ledger.json
+│       ├── case_sets/
+│       │   ├── manifest.json
+│       │   └── <case_id>.csv
 │       └── DATA_CARD.md
 └── skills/
     └── heuriboost-rag/
@@ -109,6 +112,7 @@ evidence hits, and selected V0 feature contrasts.
         │   ├── train_reranker.py
         │   ├── eval_reranker.py
         │   ├── regression_ledger.py
+        │   ├── mine_case_sets.py
         │   └── build_fiqa_csv.py
         └── templates/
             ├── query_doc_examples.csv
@@ -305,6 +309,59 @@ python skills/heuriboost-rag/scripts/regression_ledger.py promote examples/fiqa/
 ```
 
 Use `--no-ledger` on `eval_reranker.py` to skip ledger writes for ad-hoc eval.
+
+## Closing the loop: case_sets mining
+
+Pending cases are known gaps to attack. The "textbook path" for attacking one
+is to mine same-pattern training samples from the corpus, fold them into train,
+and re-evaluate to see if the pending case moves toward passing. The case
+itself stays an exam question — only B+C-isolated mined samples enter training.
+
+The four-command closed loop (run by the maintainer; no auto-promotion):
+
+```bash
+# 1. Mine same-pattern samples for all pending cases (needs build deps)
+python skills/heuriboost-rag/scripts/mine_case_sets.py \
+  --dataset examples/fiqa/query_doc_examples.csv \
+  --cases examples/fiqa/regression_cases.yaml \
+  --out-dir examples/fiqa/case_sets
+
+# 2. Retrain with mined samples folded into the train split
+python skills/heuriboost-rag/scripts/train_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir examples/fiqa/output \
+  --case-sets examples/fiqa/case_sets \
+  --regression-cases examples/fiqa/regression_cases.yaml
+
+# 3. Eval + ledger (tags the round as having used case_sets)
+python skills/heuriboost-rag/scripts/eval_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir examples/fiqa/output \
+  --split validation \
+  --regression-cases examples/fiqa/regression_cases.yaml \
+  --case-sets-used
+
+# 4. (manual) If a pending case passed AND the B check is OK, promote it
+python skills/heuriboost-rag/scripts/regression_ledger.py promote \
+  examples/fiqa/regression_cases.yaml <case_id> --ledger examples/fiqa/ledger.json
+```
+
+Mining rule = a+b+c intersection: semantic similarity to the case's query
+(all-MiniLM-L6-v2, top-K), same failure shape (hard negative at
+`dense_rank <= --shape-rank`, positive at `dense_rank >= --shape-pos-gap`),
+and same `failure_type`. B+C isolation is enforced: no mined `query_id` may
+equal any case's `query_id`, and no mined `doc_id` may equal any case's
+`must_include`/`must_not_include` doc_id.
+
+`sentence-transformers` is a build dependency
+(`requirements-build.txt`), not a runtime dependency. Mining reuses
+`examples/fiqa/.cache/query_embeddings.npz` when present.
+
+> **Pipeline-validation caveat**: step-2 attack results under heuristic labels
+> are pipeline-validation grade, not benchmark. They test whether the
+> closed-loop mechanics work (mine → train → eval → promote), not whether the
+> attack credibly moves a pending case. Credible attack quality waits for
+> LLM-mode labels (`--label-mode llm` in `build_fiqa_csv.py`).
 
 ## Reports
 

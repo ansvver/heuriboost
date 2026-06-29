@@ -90,6 +90,9 @@ regression case 元数据、排序变化、期望证据命中情况和 V0 特征
 │   └── fiqa/
 │       ├── query_doc_examples.csv
 │       ├── regression_cases.yaml
+│       ├── case_sets/
+│       │   ├── manifest.json
+│       │   └── <case_id>.csv
 │       └── DATA_CARD.md
 └── skills/
     └── heuriboost-rag/
@@ -102,6 +105,8 @@ regression case 元数据、排序变化、期望证据命中情况和 V0 特征
         │   ├── validate_dataset.py
         │   ├── train_reranker.py
         │   ├── eval_reranker.py
+        │   ├── regression_ledger.py
+        │   ├── mine_case_sets.py
         │   └── build_fiqa_csv.py
         └── templates/
             ├── query_doc_examples.csv
@@ -251,6 +256,55 @@ cases:
 
 如果 required doc 掉出 top-k，或者 forbidden doc 进入 top-k，
 `eval_reranker.py` 会让 regression gate 失败。
+
+## 闭环：case_sets 挖掘
+
+Pending case 是已知待攻击的 gap。攻击它的"教科书路径"是：从语料中挖掘
+同模式训练样本，折叠进 train，再评估看 pending case 是否趋向通过。Case 本身
+仍然是考题——只有 B+C 隔离的挖掘样本进入训练。
+
+四步闭环（由维护者手动运行，不自动 promote）：
+
+```bash
+# 1. 为所有 pending case 挖掘同模式样本（需要 build 依赖）
+python skills/heuriboost-rag/scripts/mine_case_sets.py \
+  --dataset examples/fiqa/query_doc_examples.csv \
+  --cases examples/fiqa/regression_cases.yaml \
+  --out-dir examples/fiqa/case_sets
+
+# 2. 把挖掘样本折叠进 train 重新训练
+python skills/heuriboost-rag/scripts/train_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir examples/fiqa/output \
+  --case-sets examples/fiqa/case_sets \
+  --regression-cases examples/fiqa/regression_cases.yaml
+
+# 3. 评估 + 记账（标记该轮使用了 case_sets）
+python skills/heuriboost-rag/scripts/eval_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir examples/fiqa/output \
+  --split validation \
+  --regression-cases examples/fiqa/regression_cases.yaml \
+  --case-sets-used
+
+# 4. （手动）如果 pending case 通过且 B 检查 OK，手动 promote
+python skills/heuriboost-rag/scripts/regression_ledger.py promote \
+  examples/fiqa/regression_cases.yaml <case_id> --ledger examples/fiqa/ledger.json
+```
+
+挖掘规则 = a+b+c 交集：与 case query 的语义相似度（all-MiniLM-L6-v2，top-K）、
+相同失败形状（hard negative 在 `dense_rank <= --shape-rank`，positive 在
+`dense_rank >= --shape-pos-gap`）、相同 `failure_type`。B+C 隔离：挖掘样本的
+`query_id` 不能等于任何 case 的 `query_id`，`doc_id` 不能等于任何 case 的
+`must_include`/`must_not_include` doc_id。
+
+`sentence-transformers` 是 build 依赖（`requirements-build.txt`），不是运行时
+依赖。挖掘时会复用 `examples/fiqa/.cache/query_embeddings.npz`。
+
+> **流水线验证说明**：在启发式标签下，step-2 攻击结果是流水线验证级别，不是
+> benchmark。它验证的是闭环机制是否工作（挖掘 → 训练 → 评估 → promote），而非
+> 攻击是否真正让 pending case 通过。可信的攻击质量需要 LLM 模式标签
+>（`build_fiqa_csv.py --label-mode llm`）。
 
 ## 报告说明
 

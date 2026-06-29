@@ -534,6 +534,11 @@ def main() -> None:
         action="store_true",
         help="Skip writing to the cross-round ledger (useful for ad-hoc eval)",
     )
+    parser.add_argument(
+        "--case-sets-used",
+        action="store_true",
+        help="Tag this round in the ledger as having used mined case_sets for training",
+    )
     args = parser.parse_args()
 
     require_dependencies("xgboost", "pandas", "yaml")
@@ -612,7 +617,8 @@ def main() -> None:
             "mrr@10": heuriboost_metrics.get("mrr@10", 0.0),
         }
         round_snapshot = regression_ledger.record(
-            global_metrics, case_results, args.split, args.ledger
+            global_metrics, case_results, args.split, args.ledger,
+            case_sets_used=args.case_sets_used,
         )
         vs_anchor = round_snapshot.get("vs_anchor")
         if vs_anchor is None:

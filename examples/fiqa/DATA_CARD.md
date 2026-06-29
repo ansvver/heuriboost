@@ -77,6 +77,12 @@ Committed to the repo:
 
 - `examples/fiqa/query_doc_examples.csv` — generated offline, then committed.
 - `examples/fiqa/regression_cases.yaml` — hand-confirmed regression cases.
+- `examples/fiqa/ledger.json` — cross-round ledger (version-controlled).
+- `examples/fiqa/case_sets/` — mined training samples for pending cases.
+  Derived and regeneratable via `mine_case_sets.py`; committed for
+  traceability (one file per pending case + `manifest.json`). Same CSV schema
+  as the main dataset plus a `source_case_id` column. B+C isolated from
+  regression cases (no case query_id or case doc_id in mined rows).
 - `examples/fiqa/DATA_CARD.md` — this file.
 
 NOT committed:
@@ -109,3 +115,27 @@ python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
 
 Both modes need network access to download FiQA. Only `llm` mode needs an API
 key. The build is run locally by a maintainer, never in CI.
+
+## case_sets (mined training samples)
+
+`examples/fiqa/case_sets/` contains mined training samples for pending
+regression cases. They are derived from the main CSV by
+`mine_case_sets.py` and are regeneratable:
+
+```bash
+python skills/heuriboost-rag/scripts/mine_case_sets.py \
+  --dataset examples/fiqa/query_doc_examples.csv \
+  --cases examples/fiqa/regression_cases.yaml \
+  --out-dir examples/fiqa/case_sets
+```
+
+Each `<case_id>.csv` has the same schema as the main CSV plus a
+`source_case_id` column. `manifest.json` records mining parameters and
+per-case counts. B+C isolation is enforced: no mined row's `query_id` equals
+any case's `query_id`, and no mined row's `doc_id` equals any case's
+`must_include`/`must_not_include` doc_id.
+
+> **Pipeline-validation caveat**: case_sets attack results under heuristic
+> labels are pipeline-validation grade, not benchmark. They test whether the
+> closed-loop mechanics work, not whether the attack credibly moves a pending
+> case. Credible attack quality waits for LLM-mode labels.

@@ -20,6 +20,110 @@ from common import (
 )
 
 
+def load_case_denylist(cases_path: str) -> tuple[set[str], set[str]]:
+    """Load the case query_id / doc_id denylist from regression_cases.yaml.
+
+    This is the ONE narrow, documented exception to "train never reads cases":
+    train reads the case IDS for B+C isolation, NEVER the case rows as
+    training data. The case sets themselves (mined samples) are loaded
+    separately via --case-sets and are physically distinct from the cases file.
+    """
+    require_dependencies("yaml")
+    import yaml
+
+    path = Path(cases_path)
+    if not path.exists():
+        raise SystemExit(f"Regression cases file not found: {path}")
+    data = yaml.safe_load(path.read_text()) or {}
+    cases = data.get("cases", [])
+    case_query_ids: set[str] = set()
+    case_doc_ids: set[str] = set()
+    for case in cases:
+        qid = case.get("query_id")
+        if qid is not None:
+            case_query_ids.add(str(qid))
+        for key in ("must_include_doc_ids", "must_not_include_doc_ids"):
+            for did in case.get(key, []) or []:
+                case_doc_ids.add(str(did))
+    return case_query_ids, case_doc_ids
+
+
+def load_case_sets(case_sets_path: str) -> "list":
+    """Load case_set CSV rows from a file or directory of *.csv files.
+
+    Returns a list of DataFrame rows (as a concatenated DataFrame). The
+    ``source_case_id`` column (if present) is dropped — it is for
+    traceability, not training. The ``split`` column is NOT trusted here;
+    the caller forces it to "train".
+    """
+    from common import load_pandas
+    pd = load_pandas()
+
+    path = Path(case_sets_path)
+    if not path.exists():
+        raise SystemExit(f"--case-sets path not found: {path}")
+
+    csv_files: list[Path] = []
+    if path.is_dir():
+        csv_files = sorted(path.glob("*.csv"))
+        if not csv_files:
+            raise SystemExit(f"--case-sets directory has no .csv files: {path}")
+    else:
+        csv_files = [path]
+
+    frames = []
+    for csv_file in csv_files:
+        frame = pd.read_csv(csv_file)
+        if frame.empty:
+            continue
+        frames.append(frame)
+    if not frames:
+        return pd.DataFrame()
+    combined = pd.concat(frames, ignore_index=True)
+    # Drop the traceability column; it is not a training feature.
+    if "source_case_id" in combined.columns:
+        combined = combined.drop(columns=["source_case_id"])
+    return combined
+
+
+def assert_case_set_isolation(case_set_df, case_query_ids: set[str], case_doc_ids: set[str]) -> None:
+    """Defensive B+C re-check: assert no mined row leaks a case query_id or
+    case doc_id. Fail loud with offending ids on any leak.
+
+    B: no mined row's query_id may equal any case's query_id.
+    C: no mined row's doc_id may equal any case's must_include/must_not_include doc_id.
+    """
+    if case_set_df.empty:
+        return
+
+    leaked_queries = set(case_set_df["query_id"].astype(str)) & case_query_ids
+    if leaked_queries:
+        raise SystemExit(
+            f"ANTI-LEAK B check FAILED: case_set rows contain case query_ids: "
+            f"{sorted(leaked_queries)}"
+        )
+
+    leaked_docs = set(case_set_df["doc_id"].astype(str)) & case_doc_ids
+    if leaked_docs:
+        raise SystemExit(
+            f"ANTI-LEAK C check FAILED: case_set rows contain case doc_ids: "
+            f"{sorted(leaked_docs)}"
+        )
+
+
+def _merge_train_frames(train_df, case_set_df):
+    """Merge case_set rows into the train DataFrame, aligning columns to the
+    train_df schema. Non-matching columns in case_set_df are dropped; missing
+    columns are filled with defaults."""
+    from common import load_pandas
+    pd = load_pandas()
+
+    # Align columns: keep only columns that exist in train_df.
+    aligned = case_set_df.reindex(columns=train_df.columns)
+    combined = pd.concat([train_df, aligned], ignore_index=True)
+    return combined
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("dataset", help="Path to query_doc_examples.csv")
@@ -29,6 +133,26 @@ def main() -> None:
         help="Directory for models and reports",
     )
     parser.add_argument("--rounds", type=int, default=40, help="Boosting rounds")
+    parser.add_argument(
+        "--case-sets",
+        default=None,
+        help=(
+            "Path to a case_set CSV or a directory of case_set CSVs (mined "
+            "training samples). When set, rows are merged into the TRAIN split "
+            "only. A defensive B+C isolation re-check is run against the case "
+            "denylist (requires --regression-cases)."
+        ),
+    )
+    parser.add_argument(
+        "--regression-cases",
+        default=None,
+        help=(
+            "Path to regression_cases.yaml. ONLY used to load the case "
+            "query_id/doc_id denylist for the B+C isolation re-check when "
+            "--case-sets is set. Case ROWS never enter training. Without "
+            "--case-sets, this flag is ignored."
+        ),
+    )
     args = parser.parse_args()
 
     require_dependencies("numpy", "xgboost")
@@ -43,6 +167,34 @@ def main() -> None:
         raise SystemExit("Training split is empty.")
     if valid_df.empty:
         raise SystemExit("Validation split is empty.")
+
+    # --- Optional: merge mined case_sets into the train split ---
+    case_sets_used = False
+    if args.case_sets:
+        if not args.regression_cases:
+            raise SystemExit(
+                "--case-sets requires --regression-cases to load the case "
+                "query_id/doc_id denylist for the B+C isolation re-check."
+            )
+        case_query_ids, case_doc_ids = load_case_denylist(args.regression_cases)
+        case_set_df = load_case_sets(args.case_sets)
+        if not case_set_df.empty:
+            # Defensive B+C re-check BEFORE merging into train.
+            assert_case_set_isolation(case_set_df, case_query_ids, case_doc_ids)
+            # Force split="train" regardless of source; case_sets never enter
+            # validation/test.
+            case_set_df = case_set_df.copy()
+            case_set_df["split"] = "train"
+            # Align columns to the main train_df schema (case_sets have the
+            # same schema minus source_case_id which was already dropped).
+            train_df = _merge_train_frames(train_df, case_set_df)
+            case_sets_used = True
+            print(
+                f"Merged {len(case_set_df)} case_set rows into train "
+                f"(B+C isolation check passed)."
+            )
+        else:
+            print("case_sets loaded but empty; no rows merged into train.")
 
     x_train = extract_features(train_df)
     y_train = relevance_labels(train_df)
@@ -86,6 +238,7 @@ def main() -> None:
         "validation_rows": int(len(valid_df)),
         "train_groups": int(train_df["query_id"].nunique()),
         "validation_groups": int(valid_df["query_id"].nunique()),
+        "case_sets_used": case_sets_used,
     }
     write_json(models_dir / "reranker_metadata.json", metadata)
 

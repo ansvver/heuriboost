@@ -1,0 +1,83 @@
+{
+  "mining_params": {
+    "shape_rank": 3,
+    "shape_pos_gap": 5,
+    "top_k_similar": 10,
+    "dataset": "examples/fiqa/query_doc_examples.csv",
+    "cases": "examples/fiqa/regression_cases.yaml"
+  },
+  "cases": [
+    {
+      "case_id": "fiqa_solicitation_of_security",
+      "query_id": "10117",
+      "failure_type": "semantic_hard_negative",
+      "mined_rows": 210,
+      "mined_query_ids": [
+        "10036",
+        "10049",
+        "10080",
+        "10115",
+        "10125",
+        "10140",
+        "10260",
+        "10327",
+        "10335",
+        "10526"
+      ]
+    },
+    {
+      "case_id": "fiqa_business_expenses_no_income",
+      "query_id": "1",
+      "failure_type": "semantic_hard_negative",
+      "mined_rows": 208,
+      "mined_query_ids": [
+        "0",
+        "10034",
+        "10036",
+        "10080",
+        "10125",
+        "10183",
+        "10223",
+        "10601",
+        "10663",
+        "10812"
+      ]
+    },
+    {
+      "case_id": "fiqa_combined_contribution_limits",
+      "query_id": "1100",
+      "failure_type": "semantic_hard_negative",
+      "mined_rows": 209,
+      "mined_query_ids": [
+        "10005",
+        "10160",
+        "1019",
+        "10304",
+        "10346",
+        "10365",
+        "10383",
+        "1043",
+        "10639",
+        "10645"
+      ]
+    },
+    {
+      "case_id": "fiqa_aggressive_roth_401k_taxable",
+      "query_id": "10653",
+      "failure_type": "semantic_hard_negative",
+      "mined_rows": 211,
+      "mined_query_ids": [
+        "10209",
+        "10224",
+        "10278",
+        "10279",
+        "10302",
+        "10304",
+        "10365",
+        "10383",
+        "1043",
+        "10558"
+      ]
+    }
+  ]
+}

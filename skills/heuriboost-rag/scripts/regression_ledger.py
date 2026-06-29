@@ -84,6 +84,7 @@ def record(
     case_results: list[dict],
     split: str,
     ledger_path: str | Path = DEFAULT_LEDGER_PATH,
+    case_sets_used: bool = False,
 ) -> dict:
     """Append a round snapshot to the ledger.
 
@@ -99,6 +100,10 @@ def record(
         The dataset split that was evaluated (e.g. ``"validation"``).
     ledger_path : str | Path
         Path to the committed ledger JSON.
+    case_sets_used : bool
+        Whether this round's model was trained with mined case_sets folded
+        into the train split. Stored in the round snapshot so the summary
+        can surface it.
 
     Returns
     -------
@@ -136,6 +141,7 @@ def record(
         },
         "cases": case_entries,
         "vs_anchor": vs_anchor,
+        "case_sets_used": bool(case_sets_used),
     }
 
     ledger["rounds"].append(round_snapshot)
@@ -203,6 +209,8 @@ def summary(ledger_path: str | Path = DEFAULT_LEDGER_PATH) -> None:
         f"Global: nDCG@10={latest['global'].get('ndcg@10', 0.0):.4f}, "
         f"MRR@10={latest['global'].get('mrr@10', 0.0):.4f}"
     )
+    if latest.get("case_sets_used"):
+        print(f"Round {latest['round_id']}: used case_sets (mined samples in train)")
     print(f"Gates: {tally['gate_pass']}/{tally['gate_total']} pass")
     print(f"Pending: {tally['pending_pass']}/{tally['pending_total']} pass")
     print(f"Retired: {tally['retired_total']}")
