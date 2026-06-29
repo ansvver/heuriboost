@@ -1,76 +1,89 @@
 feature_set:
   name: heuriboost_rag_v0
   version: 1
-  features:
-    - name: dense_score
-      type: numeric
-      default_value: 0.0
-      online_safe: true
-      leakage_risk: low
-      description: "Dense retriever score when available."
-    - name: dense_rank_inverse
-      type: numeric
-      default_value: 0.0
-      online_safe: true
-      leakage_risk: low
-      description: "1 / dense_rank when dense rank is available."
-    - name: sparse_score
-      type: numeric
-      default_value: 0.0
-      online_safe: true
-      leakage_risk: low
-      description: "Sparse retriever score when available."
-    - name: sparse_rank_inverse
-      type: numeric
-      default_value: 0.0
-      online_safe: true
-      leakage_risk: low
-      description: "1 / sparse_rank when sparse rank is available."
-    - name: rrf_score
-      type: numeric
-      default_value: 0.0
-      online_safe: true
-      leakage_risk: low
-      description: "Reciprocal rank fusion score from available dense/sparse ranks."
-    - name: term_overlap_ratio
-      type: numeric
-      default_value: 0.0
-      online_safe: true
-      leakage_risk: low
-      description: "Share of unique query tokens present in the document text."
-    - name: number_overlap_count
-      type: numeric
-      default_value: 0.0
-      online_safe: true
-      leakage_risk: low
-      description: "Count of numeric tokens shared by query and document."
-    - name: entity_overlap_count
-      type: numeric
-      default_value: 0.0
-      online_safe: true
-      leakage_risk: low
-      description: "Count of capitalized/acronym entity tokens shared by query and document."
-    - name: important_term_overlap
-      type: numeric
-      default_value: 0.0
-      online_safe: true
-      leakage_risk: low
-      description: "Count of shared query/document tokens of length >= 6 (proxy for rarer/important terms)."
-    - name: low_information_density_flag
-      type: numeric
-      default_value: 0.0
-      online_safe: true
-      leakage_risk: low
-      description: "1 when the document has a low unique-token ratio or is very short."
-    - name: doc_length_log
-      type: numeric
-      default_value: 0.0
-      online_safe: true
-      leakage_risk: low
-      description: "log1p of the document token count."
-    - name: query_length_log
-      type: numeric
-      default_value: 0.0
-      online_safe: true
-      leakage_risk: low
-      description: "log1p of the query token count."
+
+# Shared metadata. Each feature below merges in these defaults via `<<: *defaults`
+# and declares only its discriminating fields (name, version, description, inputs).
+defaults: &defaults
+  task_profiles: [qd_reranker]
+  type: numeric
+  default_value: 0.0
+  cost_tier: L0
+  online_safe: true
+  leakage_risk: low
+  owner: heuriboost-rag
+  expected_slices: []
+  impl: extract_all
+
+features:
+  - name: dense_score
+    version: 1
+    description: "Dense retriever score when available."
+    inputs: [dense_score]
+    <<: *defaults
+
+  - name: dense_rank_inverse
+    version: 1
+    description: "1 / dense_rank when dense rank is available."
+    inputs: [dense_rank]
+    <<: *defaults
+
+  - name: sparse_score
+    version: 1
+    description: "Sparse retriever score when available."
+    inputs: [sparse_score]
+    <<: *defaults
+
+  - name: sparse_rank_inverse
+    version: 1
+    description: "1 / sparse_rank when sparse rank is available."
+    inputs: [sparse_rank]
+    <<: *defaults
+
+  - name: rrf_score
+    version: 1
+    description: "Reciprocal rank fusion score from available dense/sparse ranks."
+    inputs: [dense_rank, sparse_rank]
+    <<: *defaults
+
+  - name: term_overlap_ratio
+    version: 1
+    description: "Share of unique query tokens present in the document text."
+    inputs: [query_text, doc_text]
+    <<: *defaults
+
+  - name: number_overlap_count
+    version: 1
+    description: "Count of numeric tokens shared by query and document."
+    inputs: [query_text, doc_text]
+    <<: *defaults
+
+  - name: entity_overlap_count
+    version: 1
+    description: "Count of capitalized/acronym entity tokens shared by query and document."
+    inputs: [query_text, doc_text]
+    <<: *defaults
+
+  - name: important_term_overlap
+    version: 1
+    description: "Count of shared query/document tokens of length >= 6 (proxy for rarer/important terms)."
+    inputs: [query_text, doc_text]
+    <<: *defaults
+
+  - name: low_information_density_flag
+    version: 1
+    description: "1 when the document has a low unique-token ratio or is very short."
+    inputs: [query_text, doc_text]
+    <<: *defaults
+
+  - name: doc_length_log
+    version: 1
+    description: "log1p of the document token count."
+    inputs: [doc_text]
+    <<: *defaults
+
+  - name: query_length_log
+    version: 1
+    description: "log1p of the query token count."
+    inputs: [query_text]
+    <<: *defaults
