@@ -72,43 +72,13 @@ HeuriBoost 分为四个互相衔接的阶段。前三个阶段把数据变成一
 
 ```mermaid
 flowchart TD
-  subgraph DATA["准备数据"]
-    direction LR
-    SRC["原始语料 + 检索器<br/>(BM25 + dense + RRF)"]
-    BUILD["构建 CSV<br/>检索候选 + 打标签"]
-    CSV["训练样本<br/>train / validation / test"]
-    SRC --> BUILD --> CSV
-  end
+  DATA["准备数据<br/>检索候选 + 打标签"]
+  LEARN["训练模型<br/>对每个 query 的文档排序"]
+  EVAL["评估并把关<br/>指标 + 已知失败用例"]
+  EVOLVE["从失败中学习<br/>挖掘相似样本，回填训练"]
 
-  subgraph LEARN["训练模型"]
-    direction LR
-    FEATS["抽取特征<br/>(检索分数 + 文本信号)"]
-    TRAIN["训练 XGBoost 排序模型<br/>按 query 分组"]
-    CSV --> FEATS --> TRAIN
-  end
-
-  subgraph EVAL["评估并记忆"]
-    direction LR
-    METRICS["整体 + 分片指标<br/>对比检索器基线"]
-    CASES["已知失败用例<br/>阻断 / 观察 / 退役"]
-    GATE["晋级门禁<br/>逐用例检查 + 整体质量检查"]
-    LEDGER["轮次历史<br/>（跨运行保存）"]
-    TRAIN --> METRICS
-    METRICS --> GATE
-    CASES --> GATE
-    GATE --> LEDGER
-  end
-
-  subgraph EVOLVE["从失败中学习"]
-    direction LR
-    MINE["挖掘相似失败<br/>（与已知用例隔离开）"]
-    SETS["把挖掘样本加入训练"]
-    PROMOTE["把修好的失败晋级<br/>观察 -> 阻断（手动）"]
-    LEDGER -->|观察用例仍失败| MINE --> SETS --> FEATS
-    LEDGER -->|观察用例已通过| PROMOTE --> CASES
-  end
-
-  LEDGER -.下一轮.-> LEARN
+  DATA --> LEARN --> EVAL --> EVOLVE
+  EVOLVE -.下一轮.-> LEARN
 ```
 
 ### 各阶段职责

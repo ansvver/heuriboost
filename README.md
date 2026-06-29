@@ -83,43 +83,13 @@ below the diagram.
 
 ```mermaid
 flowchart TD
-  subgraph DATA["Prepare data"]
-    direction LR
-    SRC["raw corpus + retriever<br/>(BM25 + dense + RRF)"]
-    BUILD["build CSV<br/>retrieve + label candidates"]
-    CSV["training examples<br/>train / validation / test"]
-    SRC --> BUILD --> CSV
-  end
+  DATA["Prepare data<br/>retrieve + label candidates"]
+  LEARN["Train model<br/>rank documents per query"]
+  EVAL["Evaluate & gate<br/>metrics + known failure cases"]
+  EVOLVE["Learn from failures<br/>mine similar examples, feed back"]
 
-  subgraph LEARN["Train model"]
-    direction LR
-    FEATS["extract features<br/>(retriever scores + text signals)"]
-    TRAIN["train XGBoost ranker<br/>grouped by query"]
-    CSV --> FEATS --> TRAIN
-  end
-
-  subgraph EVAL["Evaluate & remember"]
-    direction LR
-    METRICS["overall + slice metrics<br/>vs retriever baselines"]
-    CASES["known failure cases<br/>blocking / watch / retired"]
-    GATE["promotion gate<br/>per-case checks + overall-quality check"]
-    LEDGER["round history<br/>(saved across runs)"]
-    TRAIN --> METRICS
-    METRICS --> GATE
-    CASES --> GATE
-    GATE --> LEDGER
-  end
-
-  subgraph EVOLVE["Learn from failures"]
-    direction LR
-    MINE["mine similar failures<br/>(kept separate from known cases)"]
-    SETS["add mined samples to training"]
-    PROMOTE["promote a fixed failure<br/>watch -> blocking (manual)"]
-    LEDGER -->|a watched case still fails| MINE --> SETS --> FEATS
-    LEDGER -->|a watched case now passes| PROMOTE --> CASES
-  end
-
-  LEDGER -.next round.-> LEARN
+  DATA --> LEARN --> EVAL --> EVOLVE
+  EVOLVE -.next round.-> LEARN
 ```
 
 ### What each stage does
