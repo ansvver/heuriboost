@@ -76,102 +76,107 @@ Two invariants are absolute:
 
 ## Project Flow
 
-HeuriBoost runs as four conceptual layers. The V0 demo instantiates the first
-three with a Q-D reranking task profile; V1 adds the fourth (iterative
-failure-attack); future work (HPO, automatic feature discovery, serving) is
-described in `docs/specs/` and not yet implemented.
+HeuriBoost runs as four stages that feed into each other. The first three turn
+data into an evaluated model; the fourth closes the loop by learning from the
+model's own mistakes and feeding improvements back in. Each stage is described
+below the diagram.
 
 ```mermaid
 flowchart TD
-  subgraph DATA["1. Data layer"]
+  subgraph DATA["Prepare data"]
     direction LR
     SRC["raw corpus + retriever<br/>(BM25 + dense + RRF)"]
-    BUILD["build_fiqa_csv.py<br/>heuristic or LLM labels"]
-    CSV["LearningExamples CSV<br/>train / val / test"]
+    BUILD["build CSV<br/>retrieve + label candidates"]
+    CSV["training examples<br/>train / validation / test"]
     SRC --> BUILD --> CSV
   end
 
-  subgraph LEARN["2. Learning layer"]
+  subgraph LEARN["Train model"]
     direction LR
-    FEATS["FeatureRecipe registry<br/>(V0: hardcoded extract_features)"]
-    TRAIN["train XGBoost<br/>grouped by query_id"]
+    FEATS["extract features<br/>(retriever scores + text signals)"]
+    TRAIN["train XGBoost ranker<br/>grouped by query"]
     CSV --> FEATS --> TRAIN
   end
 
-  subgraph EVAL["3. Evaluation & memory layer"]
+  subgraph EVAL["Evaluate & remember"]
     direction LR
-    METRICS["global + slice metrics<br/>vs retriever baselines"]
-    CASES["RegressionCase ledger<br/>gate / pending / retired"]
-    GATE["PromotionGate<br/>A: per-case  B: global vs anchor"]
-    LEDGER["ledger.json<br/>round history + B2 anchor"]
+    METRICS["overall + slice metrics<br/>vs retriever baselines"]
+    CASES["known failure cases<br/>blocking / watch / retired"]
+    GATE["promotion gate<br/>per-case checks + overall-quality check"]
+    LEDGER["round history<br/>(saved across runs)"]
     TRAIN --> METRICS
     METRICS --> GATE
     CASES --> GATE
     GATE --> LEDGER
   end
 
-  subgraph EVOLVE["4. Evolution layer (V1+)"]
+  subgraph EVOLVE["Learn from failures"]
     direction LR
-    MINE["mine same-pattern samples<br/>(a+b+c, B+C isolated)"]
-    SETS["case_sets -> train"]
-    PROMOTE["manual promote<br/>pending -> gate"]
-    LEDGER -->|pending fails| MINE --> SETS --> FEATS
-    LEDGER -->|gate passes| PROMOTE --> CASES
+    MINE["mine similar failures<br/>(kept separate from known cases)"]
+    SETS["add mined samples to training"]
+    PROMOTE["promote a fixed failure<br/>watch -> blocking (manual)"]
+    LEDGER -->|a watched case still fails| MINE --> SETS --> FEATS
+    LEDGER -->|a watched case now passes| PROMOTE --> CASES
   end
 
   LEDGER -.next round.-> LEARN
 ```
 
-### What each layer does
+### What each stage does
 
-- **Data layer** — a task profile defines what a `LearningExample` looks like.
-  For Q-D reranking, `build_fiqa_csv.py` runs retrieval (FiQA ships no
-  candidates) and assigns labels (heuristic or LLM-judged), producing the
-  committed CSV with fixed train/val/test splits.
-- **Learning layer** — features are declared (V0: hardcoded in
-  `extract_features`; future: a `FeatureRecipe` registry), and XGBoost is
-  trained with the task profile's objective (`rank:ndcg`) and grouping.
-- **Evaluation & memory layer** — each model is scored against retriever
-  baselines and against the `RegressionCase` ledger. The `PromotionGate` checks
-  both per-case (A: must_include rank, per-query metric) and global (B:
-  no-regression vs the anchored baseline). `ledger.json` records every round.
-- **Evolution layer** — pending failures are mined for same-pattern training
-  samples (`case_sets`, B+C isolated from cases), folded back into train. Cases
-  that turn green are manually promoted to gates. This is the multi-round
-  "attack the failure set" loop.
+- **Prepare data** — the dataset builder runs retrieval (FiQA ships no
+  candidates) and assigns each query-document pair a relevance label (a fast
+  heuristic, or an LLM judge). The result is a CSV with fixed train /
+  validation / test splits.
+- **Train model** — each row is turned into features (retriever scores and
+  ranks plus query-document text signals), and an XGBoost ranking model is
+  trained, grouped so all candidates for one query stay together.
+- **Evaluate & remember** — the model is scored against the raw retriever
+  baselines and against a list of known failure cases. The promotion gate runs
+  two kinds of check: per-case checks (did this specific failure get fixed?)
+  and an overall-quality check (did the model get worse anywhere?). Every run is
+  appended to the round history.
+- **Learn from failures** — for failures still on the watch list, the system
+  mines similar examples from the corpus and adds them to training (these mined
+  samples are deliberately kept separate from the known failure cases). When a
+  watched failure is reliably fixed, it is promoted by hand to a blocking case
+  so future runs can never regress it. Repeating this is the "attack the
+  failure set" loop.
 
 ### One round, conceptually
 
 ```text
-function run_round(task_profile, cases, ledger, use_case_sets):
-    # Layer 1+2: data + features + train
-    train_df = load_examples(task_profile, split="train")
-    if use_case_sets:
-        for case in cases where case.status == "pending":
-            samples = mine_same_pattern(case, corpus, task_profile)  # a+b+c
-            samples = isolate(samples, case_ids)                     # B+C
-        train_df += load_case_sets()
-        assert_isolation(train_df, case_ids)                        # defensive
-    model = train_xgb(task_profile, train_df, valid_df)
+function run_round(dataset, failure_cases, history, learn_from_failures):
+    # Prepare data + train
+    train_rows = load_examples(dataset, split="train")
+    if learn_from_failures:
+        for case in failure_cases where case is on the watch list:
+            similar = mine_similar_failures(case, corpus)
+            similar = keep_separate_from(similar, failure_cases)
+        train_rows += load_mined_samples()
+        assert_no_overlap(train_rows, failure_cases)   # safety re-check
+    model = train_xgb_ranker(train_rows, validation_rows)
 
-    # Layer 3: evaluate + gate
-    metrics = evaluate(model, task_profile, split)
-    case_results = run_cases(model, cases)        # gate blocks; pending reports
-    ledger.record(round, metrics, case_results, use_case_sets)
-    if ledger.has_anchor:
-        report_B(metrics vs ledger.anchor)        # reported, not auto-blocking
+    # Evaluate + gate
+    metrics = evaluate(model, split)
+    case_results = run_failure_cases(model, failure_cases)
+        # blocking cases stop the run on failure; watched cases only report
+    history.record(round, metrics, case_results, learn_from_failures)
+    if history.has_baseline:
+        report_overall_quality(metrics vs history.baseline)   # reported, not auto-blocking
 
-    # Layer 4: evolve
-    for case in pending_cases_that_passed(case_results):
-        suggest_promote(case)                     # MANUAL, never auto
+    # Learn from failures
+    for case in watched_cases_that_now_pass(case_results):
+        suggest_promote(case)                          # manual, never automatic
 
-    # demo ships green only if every gate case passes
-    return exit_code == 0 iff no gate case failed
+    # the demo ships green only if every blocking case passes
+    return exit_code == 0 iff no blocking case failed
 ```
 
-Two invariants hold across every round and every layer: (1) regression/gate
-case ROWS never enter training — only mined, B+C-isolated samples do; (2)
-promotion pending -> gate is always manual.
+Two rules hold across every round and every stage: (1) the rows of a known
+failure case never enter training — only mined samples that are kept separate
+from those cases do; (2) promoting a watched failure to a blocking one is always
+a manual decision.
 
 ## What V0 Does
 
@@ -542,3 +547,4 @@ hard negatives), so they illustrate the loop rather than serve as a benchmark;
 use `--label-mode llm` for benchmark-grade labels.
 
 Long-form design specs live in `docs/specs/`.
+# heuriboost
