@@ -38,3 +38,36 @@ Removed the hand-built examples/financial_rag/ toy demo (could not honestly back
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: Case state machine (gate/pending/retired) + cross-round ledger
+
+**Date**: 2026-06-29
+**Task**: Case state machine (gate/pending/retired) + cross-round ledger
+**Branch**: `main`
+
+### Summary
+
+Implemented V1 step 1 of the iterative failure-attack loop. regression_cases.yaml now uses three-state status (gate/pending/retired; absent->gate) with optional per-case A checks (require_rank, min_ndcg10). eval_reranker.py is status-aware (plan Y, thin): gate failure exits non-zero, pending failure reports only, retired skipped; report split into Gates + Pending with promotion candidates; --ledger/--no-ledger. New regression_ledger.py owns the committed examples/fiqa/ledger.json: per-round snapshots + B2 anchor, record/set-anchor/summary/promote (manual, no auto-promotion), B global-no-regression reported (not exit-blocking), graceful no-anchor. Migrated FiQA demo to 2 gates + 4 pending. Anti-leak preserved (train never reads cases/ledger). Spec updated with three new contracts. Verified: gate-fail->exit1, demo 4-pending-fail->exit0, py_compile clean, ledger reset to clean 1-round+anchor baseline. Deferred: case_sets inbox + corpus-mining settlement (separate task).
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5dd09b3` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
