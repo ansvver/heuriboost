@@ -15,23 +15,35 @@ It also requires:
   * Network access to download FiQA (corpus, queries, qrels) via the Hugging
     Face ``datasets`` library. Downloaded data goes into ``--cache-dir`` (which
     is gitignored) and the standard Hugging Face cache.
-  * An LLM API key for build-time label judging. By default this script uses the
-    OpenAI client and reads ``OPENAI_API_KEY`` from the environment. If the
-    client or key is missing, the script exits with a clear, actionable error
-    instead of a stack trace.
+  * An LLM API key for build-time label judging, ONLY when --label-mode llm
+    (the default). With --label-mode heuristic, no key or network LLM is needed.
+    For llm mode this script uses an OpenAI-compatible client; by default it
+    targets DeepSeek
+    (``--base-url https://api.deepseek.com``, model ``deepseek-chat``) and reads
+    ``DEEPSEEK_API_KEY`` (falling back to ``OPENAI_API_KEY``). To use OpenAI,
+    pass ``--base-url ""`` (or the OpenAI base URL) and ``--judge-model``
+    accordingly. If the client or key is missing, the script exits with a clear,
+    actionable error instead of a stack trace.
 
 What it does:
 
   1. Loads FiQA-2018 corpus, queries, and qrels honoring the native
-     train/dev/test split (dev is mapped to ``validation``).
+     train/validation/test split.
   2. Slices to small per-split query caps for a committable demo.
   3. Retrieves candidates per query with BM25 (rank_bm25, "sparse") and a dense
      encoder (sentence-transformers all-MiniLM-L6-v2, "dense"), computes an RRF
      ordering to pick the candidate union, and records dense/sparse ranks/scores.
      NOTE: FiQA does not ship a candidate set, so this script runs retrieval
      itself to produce dense/sparse scores. That is expected.
-  4. Assigns 5-level labels {3,2,1,0,-1} with a build-time LLM judge. qrel
-     positives are seeded as 3 before judging.
+  4. Assigns labels {3,2,1,0,-1}. qrel positives are always seeded as 3. For
+     the remaining candidates, two modes are available via --label-mode:
+       * llm (default): an LLM judge grades each candidate on the full 5-level
+         scale. Needs an API key; ~thousands of calls for the default caps.
+       * heuristic: zero-cost, deterministic, no LLM. A non-positive ranked
+         highly by the dense retriever (dense_rank <= --hard-negative-rank) is
+         labeled -1 (semantic hard negative); everything else is 0. FiQA qrels
+         are sparse, so some -1s may be unlabeled-relevant; this is a demo
+         approximation, documented in the data card, not a benchmark.
   5. Writes a CSV with the fixed HeuriBoost column schema; doc_text is truncated
      to ``--max-doc-chars``.
 
@@ -97,8 +109,9 @@ class LLMJudge:
         "Grade (one of 3, 2, 1, 0, -1):"
     )
 
-    def __init__(self, model: str) -> None:
+    def __init__(self, model: str, base_url: str | None = None) -> None:
         self.model = model
+        self.base_url = base_url
         self._client = None
 
     def _ensure_client(self):
@@ -112,12 +125,18 @@ class LLMJudge:
                 "with: python -m pip install -r "
                 "skills/heuriboost-rag/requirements-build.txt"
             )
-        if not os.environ.get("OPENAI_API_KEY"):
+        # DeepSeek and other providers expose an OpenAI-compatible API. Read the
+        # key from DEEPSEEK_API_KEY first, then fall back to OPENAI_API_KEY.
+        api_key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        if not api_key:
             _fail(
-                "OPENAI_API_KEY is not set. Export an API key before generating "
-                "labels, e.g. export OPENAI_API_KEY=sk-..."
+                "No API key found. Export DEEPSEEK_API_KEY (or OPENAI_API_KEY) "
+                "before generating labels, e.g. export DEEPSEEK_API_KEY=sk-..."
             )
-        self._client = OpenAI()
+        kwargs = {"api_key": api_key}
+        if self.base_url:
+            kwargs["base_url"] = self.base_url
+        self._client = OpenAI(**kwargs)
         return self._client
 
     def grade(self, query_text: str, doc_text: str) -> int:
@@ -147,6 +166,34 @@ class LLMJudge:
 
 
 # ---------------------------------------------------------------------------
+# Heuristic labeling (no LLM)
+# ---------------------------------------------------------------------------
+
+
+def heuristic_label(dense_rank, hard_negative_rank: int) -> int:
+    """Assign a label without an LLM, for a candidate that is NOT a qrel positive.
+
+    Rule (deterministic, zero-cost):
+      * a candidate the dense retriever ranked highly (dense_rank <=
+        hard_negative_rank) but that is not a qrel positive is treated as a
+        semantic hard negative -> -1 (the retriever was fooled by topical
+        similarity).
+      * everything else -> 0 (irrelevant).
+
+    Caveat: FiQA qrels are sparsely annotated, so some -1s may actually be
+    unlabeled-relevant. This is an approximation suitable for a demo, not a
+    benchmark; it is documented in the data card.
+    """
+    try:
+        rank = int(dense_rank)
+    except (TypeError, ValueError):
+        # No dense rank (e.g. a seeded positive that fell outside top-k); not a
+        # retriever-fooled hard negative.
+        return 0
+    return -1 if 0 < rank <= hard_negative_rank else 0
+
+
+# ---------------------------------------------------------------------------
 # FiQA loading
 # ---------------------------------------------------------------------------
 
@@ -155,10 +202,11 @@ class LLMJudge:
 #   * BeIR/fiqa            "corpus"  -> {_id, title, text}
 #   * BeIR/fiqa            "queries" -> {_id, text}
 #   * BeIR/fiqa-qrels                -> {query-id, corpus-id, score} with native
-#                                       train/dev/test splits.
-# The qrels split is FiQA's native split; we map "dev" -> "validation".
+#                                       train/validation/test splits.
+# BeIR/fiqa-qrels exposes the dev split under the name "validation" on the HF
+# Hub, so we load "validation" directly (no "dev" alias exists there).
 
-QREL_SPLIT_MAP = {"train": "train", "dev": "validation", "test": "test"}
+QREL_SPLIT_MAP = {"train": "train", "validation": "validation", "test": "test"}
 
 
 def load_fiqa(cache_dir: str):
@@ -332,7 +380,11 @@ def build(args) -> None:
     )
     bm25, encoder, doc_embeddings = build_retrievers(corpus_ids, corpus_texts)
 
-    judge = LLMJudge(args.judge_model)
+    judge = (
+        LLMJudge(args.judge_model, base_url=args.base_url)
+        if args.label_mode == "llm"
+        else None
+    )
 
     rows = []
     for split, query_ids in selected.items():
@@ -364,8 +416,10 @@ def build(args) -> None:
                 did = cand["doc_id"]
                 doc_text = corpus.get(did, "")[: args.max_doc_chars]
                 if did in positives:
-                    # Seed qrel positives as directly-supporting before judging.
+                    # Seed qrel positives as directly-supporting in both modes.
                     label = 3
+                elif args.label_mode == "heuristic":
+                    label = heuristic_label(cand["dense_rank"], args.hard_negative_rank)
                 else:
                     label = judge.grade(query_text, doc_text)
                 rows.append(
@@ -421,9 +475,36 @@ def parse_args(argv=None) -> argparse.Namespace:
         help="Output CSV path",
     )
     parser.add_argument(
+        "--label-mode",
+        choices=["llm", "heuristic"],
+        default="llm",
+        help=(
+            "How to label non-positive candidates. 'llm' grades each with an "
+            "LLM (5 levels, needs an API key). 'heuristic' is zero-cost and "
+            "deterministic: high dense-rank non-positives -> -1, else 0."
+        ),
+    )
+    parser.add_argument(
+        "--hard-negative-rank",
+        type=int,
+        default=5,
+        help=(
+            "Heuristic mode only: a non-positive with dense_rank <= this value "
+            "is labeled a hard negative (-1)."
+        ),
+    )
+    parser.add_argument(
         "--judge-model",
-        default="gpt-4o-mini",
-        help="LLM model name used for build-time label judging",
+        default="deepseek-chat",
+        help="LLM model name used for build-time label judging (llm mode)",
+    )
+    parser.add_argument(
+        "--base-url",
+        default="https://api.deepseek.com",
+        help=(
+            "OpenAI-compatible API base URL for the judge. Defaults to DeepSeek; "
+            "pass an empty string '' or https://api.openai.com/v1 for OpenAI."
+        ),
     )
     return parser.parse_args(argv)
 

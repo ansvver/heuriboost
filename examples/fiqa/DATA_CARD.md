@@ -7,8 +7,9 @@ Provenance record for the committed HeuriBoost FiQA demo dataset
 
 - **Dataset**: BEIR / FiQA-2018 (financial-domain question answering).
 - **Loaded via**: Hugging Face `datasets` (`BeIR/fiqa` corpus + queries,
-  `BeIR/fiqa-qrels` for relevance), honoring FiQA's native train/dev/test split
-  (dev is mapped to `validation`).
+  `BeIR/fiqa-qrels` for relevance), honoring FiQA's native
+  train/validation/test split (`BeIR/fiqa-qrels` exposes the dev split as
+  `validation`).
 
 ## License
 
@@ -33,22 +34,34 @@ candidate set, so the build script runs retrieval itself:
 Each `(query, doc)` row records `dense_rank`, `dense_score`, `sparse_rank`, and
 `sparse_score`.
 
-## Labels (build-time LLM judge)
+## Labels
 
 Labels use the 5-level HeuriBoost scale `{3, 2, 1, 0, -1}`. qrel-positive docs
-are seeded as `3` before judging; remaining candidates are graded by a
-build-time LLM judge.
+are always seeded as `3`. The remaining candidates are labeled by one of two
+build modes (`--label-mode`):
 
-Fill in the actual values used for the committed CSV:
+**`llm` (default)** — a build-time LLM judge grades each non-positive candidate
+on the full 5-level scale. Fill in the actual values used for the committed CSV:
 
-- **Judge model**: `__________` (default placeholder: `gpt-4o-mini`)
+- **Judge model**: `__________` (default: `deepseek-chat` via DeepSeek's
+  OpenAI-compatible API at `https://api.deepseek.com`)
 - **Judge prompt version/date**: `__________`
 - **Generated on (date)**: `__________`
 
-> LLM-judged labels may feed training and evaluation. They may NOT define
-> regression-gate `must_not_include` cases and may NEVER be used as an online
-> model feature. Regression cases (`examples/fiqa/regression_cases.yaml`) are
-> hand-confirmed from trusted labels.
+**`heuristic`** — zero-cost, deterministic, no LLM. A non-positive candidate
+ranked highly by the dense retriever (`dense_rank <= --hard-negative-rank`,
+default 5) is labeled `-1` (semantic hard negative); everything else is `0`.
+Note: FiQA qrels are sparsely annotated, so some heuristic `-1`s may actually be
+unlabeled-relevant passages. This is an acceptable demo approximation, NOT a
+benchmark-grade label set. Record which mode produced the committed CSV:
+
+- **Label mode used**: `__________` (`llm` or `heuristic`)
+- **Generated on (date)**: `__________`
+
+> Labels (LLM-judged or heuristic) may feed training and evaluation. They may
+> NOT define regression-gate `must_not_include` cases and may NEVER be used as
+> an online model feature. Regression cases
+> (`examples/fiqa/regression_cases.yaml`) are hand-confirmed from trusted labels.
 
 ## Slice Caps
 
@@ -77,11 +90,22 @@ NOT committed:
 
 ## Regenerating
 
+Heuristic mode (no LLM, no API key):
+
 ```bash
 python -m pip install -r skills/heuriboost-rag/requirements-build.txt
-export OPENAI_API_KEY=sk-...
-python skills/heuriboost-rag/scripts/build_fiqa_csv.py --output examples/fiqa/query_doc_examples.csv
+python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
+  --label-mode heuristic --output examples/fiqa/query_doc_examples.csv
 ```
 
-The build script needs network access (to download FiQA) and an LLM API key (to
-judge labels). It is run locally by a maintainer and never in CI.
+LLM mode (DeepSeek by default):
+
+```bash
+python -m pip install -r skills/heuriboost-rag/requirements-build.txt
+export DEEPSEEK_API_KEY=sk-...   # or OPENAI_API_KEY with --base-url ""
+python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
+  --label-mode llm --output examples/fiqa/query_doc_examples.csv
+```
+
+Both modes need network access to download FiQA. Only `llm` mode needs an API
+key. The build is run locally by a maintainer, never in CI.
