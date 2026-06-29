@@ -131,6 +131,7 @@ skill 模式见[参考手册](./docs/REFERENCE.zh-CN.md)。
 - [x] 报告：ranking diff、feature importance、确定性失败分析
 - [x] HPO adapter（Optuna 后端，确定性，case/test-blind 搜索 + post-hoc test 评估）
 - [x] A/B/C/D 消融框架（候选探针 + val/test/gate 三重晋级判定）
+- [x] LLM 候选发现（单次 JSON 模式，静态校验，输出供消融消费）
 - [x] Regression case 作为 gate，含三态状态机（gate / pending / retired）
 - [x] per-case 检查（`require_rank`、`min_ndcg10`）+ 整体质量检查
 - [x] 跨轮 ledger，含手动锚定的基线
@@ -141,7 +142,7 @@ skill 模式见[参考手册](./docs/REFERENCE.zh-CN.md)。
 未完成：
 
 - [ ] 提交 demo 的 LLM 模式（benchmark 级）标签
-- [ ] 自动特征发现 + 晋级（`FeatureMemory`；消融框架已完成，LLM 候选生成 + 编排待做）
+- [ ] 特征晋级记忆（`FeatureMemory`；发现 + 消融已完成，决定的机构记忆待做）
 - [ ] 其他 task profile（分类 / 回归 / …）
 - [ ] 线上 serving、shadow/backtest、A/B 上线
 - [ ] 稳定 Python package / public API（`pyproject.toml`）

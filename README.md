@@ -143,6 +143,7 @@ Done:
 - [x] Reports: ranking diff, feature importance, deterministic failure analysis
 - [x] HPO adapter (Optuna backend, deterministic, case/test-blind search + post-hoc test eval)
 - [x] A/B/C/D ablation framework (candidate probe + dual val/test/gate promotion rule)
+- [x] LLM candidate discovery (one-shot JSON mode, static validation, feeds ablation)
 - [x] Regression cases as gates, with a three-state machine (gate / pending / retired)
 - [x] Per-case checks (`require_rank`, `min_ndcg10`) + overall-quality check
 - [x] Cross-round ledger with a manually-anchored baseline
@@ -153,7 +154,7 @@ Done:
 Not yet:
 
 - [ ] LLM-mode (benchmark-grade) labels for the committed demo
-- [ ] Automatic feature discovery + promotion (`FeatureMemory`; ablation framework is done, LLM candidate gen + orchestration pending)
+- [ ] Feature promotion memory (`FeatureMemory`; discovery + ablation are done, institutional memory of decisions pending)
 - [ ] Other task profiles (classification / regression / …)
 - [ ] Online serving, shadow/backtest, A/B rollout
 - [ ] Stable Python package / public API (`pyproject.toml`)

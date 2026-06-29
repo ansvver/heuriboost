@@ -6,6 +6,7 @@ HeuriBoost Q-D reranker 的操作参考。[README](../README.zh-CN.md) 讲故事
 - [特征 registry](#特征-registry)
 - [HPO](#hpo)
 - [消融](#消融)
+- [候选发现](#候选发现)
 - [CSV 契约](#csv-契约)
 - [标签含义](#标签含义)
 - [Regression cases](#regression-cases)
@@ -111,6 +112,31 @@ D-C（带候选的调参增益）。
 
 val+test+gate 三重检查避免 cherry-pick HPO 过拟合的 val 噪声。完整契约见
 `.trellis/spec/backend/ablation-contracts.md`。
+
+## 候选发现
+
+`scripts/run_discover_candidates.py` 读取 pending regression case 的
+`failure_analysis.md` + 现有特征集，调一次 LLM（DeepSeek，JSON 模式）提议 N 个
+候选特征，静态校验后写入候选文件，供 `run_ablation.py` 消费。
+
+```bash
+export DEEPSEEK_API_KEY=sk-...
+python3 skills/heuriboost-rag/scripts/run_discover_candidates.py \
+  --out-dir examples/fiqa/output/discovery --n-candidates 5
+```
+
+输出写入 `examples/fiqa/output/discovery/`（被 git 忽略）：每个有效候选
+`candidates/<name>/{recipe.yaml, impl.py}` + `candidates_report.md`（含"⚠ 运行
+消融前请审阅 impl.py"警告）。
+
+LLM 看到 pending cases 的 Feature Contrast + Suggested Actions + 现有特征名 +
+primitives API + `ALLOWED_INPUTS` + recipe schema——**不看** label、不看 case 行、
+不看 `extract_all` 源码。生成的 `impl_code` 仅静态校验（`ast.parse` + `def
+candidate` + import 白名单），生成阶段**不 importlib 加载**（不可信）。用户审阅
+`impl.py` 后，用 `run_ablation.py` 测试候选。
+
+无效候选丢弃+告警（1 次 LLM 调用，无重试）。完整契约见
+`.trellis/spec/backend/discovery-contracts.md`。
 
 ## CSV 契约
 

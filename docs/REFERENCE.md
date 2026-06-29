@@ -7,6 +7,7 @@ command details a maintainer needs day to day.
 - [Feature registry](#feature-registry)
 - [HPO](#hpo)
 - [Ablation](#ablation)
+- [Candidate discovery](#candidate-discovery)
 - [CSV contract](#csv-contract)
 - [Label scale](#label-scale)
 - [Regression cases](#regression-cases)
@@ -116,6 +117,34 @@ Recommendation (report only — promotion is always manual):
 
 The dual val+test+gate check avoids cherry-picking HPO-overfit validation
 noise. See `.trellis/spec/backend/ablation-contracts.md` for full contracts.
+
+## Candidate discovery
+
+`scripts/run_discover_candidates.py` reads the per-case `failure_analysis.md`
+for PENDING regression cases + the existing feature set, calls an LLM ONCE
+(DeepSeek, JSON mode) to propose N candidate features, validates them
+statically, and writes candidate files ready for `run_ablation.py`.
+
+```bash
+export DEEPSEEK_API_KEY=sk-...
+python3 skills/heuriboost-rag/scripts/run_discover_candidates.py \
+  --out-dir examples/fiqa/output/discovery --n-candidates 5
+```
+
+Outputs land in `examples/fiqa/output/discovery/` (gitignored):
+`candidates/<name>/{recipe.yaml, impl.py}` per valid candidate +
+`candidates_report.md` (table + a "⚠ review impl.py before running ablation"
+warning).
+
+The LLM sees pending cases' Feature Contrast + Suggested Actions + existing
+feature names + the primitives API + `ALLOWED_INPUTS` + the recipe schema —
+NOT labels, NOT case rows, NOT the full `extract_all` source. Generated
+`impl_code` is validated statically (`ast.parse` + `def candidate` + import
+allowlist); it is NOT `importlib`-loaded during generation (untrusted). The
+user reviews `impl.py`, then runs `run_ablation.py` on a candidate to test it.
+
+Invalid candidates are dropped + warned (1 LLM call, no retry). See
+`.trellis/spec/backend/discovery-contracts.md` for full contracts.
 
 ## CSV contract
 
