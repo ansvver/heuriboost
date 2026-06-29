@@ -1,0 +1,222 @@
+# HeuriBoost Reference
+
+Operational reference for the HeuriBoost Q-D reranker. The [README](../README.md)
+covers the story, concepts, and demo results; this file holds the contracts and
+command details a maintainer needs day to day.
+
+- [CSV contract](#csv-contract)
+- [Label scale](#label-scale)
+- [Regression cases](#regression-cases)
+- [Cross-round ledger](#cross-round-ledger)
+- [Closing the loop: case_sets mining](#closing-the-loop-case_sets-mining)
+- [Reports](#reports)
+- [Agent skill](#agent-skill)
+- [Regenerating the demo dataset](#regenerating-the-demo-dataset)
+
+## CSV contract
+
+Required columns:
+
+```csv
+query_id,query_text,doc_id,doc_text,label,split
+```
+
+Recommended columns (enable richer features):
+
+```csv
+query_id,query_text,doc_id,chunk_id,doc_text,dense_rank,dense_score,sparse_rank,sparse_score,label,split
+```
+
+Rows are grouped by `query_id`; never shuffle query-document pairs across
+groups. `split` is one of `train` / `validation` / `test`.
+
+## Label scale
+
+| Label | Meaning |
+|---:|---|
+| `3` | directly supports the answer |
+| `2` | partially supports the answer |
+| `1` | related but weak evidence |
+| `0` | irrelevant |
+| `-1` | misleading hard negative |
+
+For XGBoost training, labels are mapped to non-negative ordered relevance
+(`-1→0, 0→1, 1→2, 2→3, 3→4`). Evaluation keeps the original labels so hard
+negatives stay visible in reports and gates.
+
+## Regression cases
+
+Regression cases are exam questions, never training rows. Each case carries a
+`status`:
+
+| Status | Behavior |
+|---|---|
+| `gate` | attacked & frozen. A failure blocks (exit non-zero). |
+| `pending` | a known gap to attack. Evaluated and reported, failure does NOT block. |
+| `retired` | invalidated by drift. Not evaluated; kept for history. |
+
+A missing `status` defaults to `gate` (backward compatible).
+
+Optional per-case local checks:
+
+- `require_rank` (int): the first `must_include` doc must reach rank <= this value.
+- `min_ndcg10` (float): the per-query nDCG@10 must be >= this value.
+
+A case **passes** iff all `must_include` are within `top_k` (and the first
+reaches `require_rank` if set) AND no `must_not_include` is within `top_k` AND
+`min_ndcg10` is satisfied if set.
+
+```yaml
+cases:
+  - case_id: fiqa_expense_deduction_wrong_topic
+    query_id: fiqa_q_001
+    status: gate
+    require_rank: 3
+    query: "Can I deduct home-office expenses as a sole proprietor?"
+    must_include_doc_ids:
+      - fiqa_doc_home_office_deduction
+    must_not_include_doc_ids:
+      - fiqa_doc_corporate_office_lease
+    top_k: 3
+    failure_type: semantic_hard_negative
+    expected_evidence:
+      - "home office"
+      - "deduction"
+      - "sole proprietor"
+```
+
+If a `gate` case fails, `eval_reranker.py` exits non-zero. `pending` failures
+are reported but do not change the exit code.
+
+## Cross-round ledger
+
+`regression_ledger.py` owns cross-round memory in a committed
+`examples/fiqa/ledger.json` (version-controlled, NOT gitignored, NOT
+auto-committed). Each evaluation round appends a snapshot (global metrics,
+per-case pass/fail, and a comparison against the anchored baseline). The anchor
+is a frozen snapshot's global metrics, manually refreshed when gains are
+confirmed.
+
+```bash
+# After an eval round, set the anchor (manual, one-time or on confirmed gains):
+python skills/heuriboost-rag/scripts/regression_ledger.py set-anchor --ledger examples/fiqa/ledger.json
+
+# Print a progress summary (gate/pending counts, promotion candidates, baseline line):
+python skills/heuriboost-rag/scripts/regression_ledger.py summary --ledger examples/fiqa/ledger.json
+
+# Promote a pending case to gate (interactive confirmation, no auto-promotion):
+python skills/heuriboost-rag/scripts/regression_ledger.py promote examples/fiqa/regression_cases.yaml <case_id> --ledger examples/fiqa/ledger.json
+```
+
+The anchored-baseline comparison is **reported, not auto-blocking** — promotion
+is always a manual decision. Use `--no-ledger` on `eval_reranker.py` to skip
+ledger writes for ad-hoc eval.
+
+## Closing the loop: case_sets mining
+
+Pending cases are known gaps to attack. The textbook path is to mine
+same-pattern training samples from the corpus, fold them into the train split,
+and re-evaluate. The case itself stays an exam question — only mined samples
+that are kept separate from the cases enter training.
+
+The four-command closed loop (run by the maintainer; no auto-promotion):
+
+```bash
+# 1. Mine same-pattern samples for all pending cases (needs build deps)
+python skills/heuriboost-rag/scripts/mine_case_sets.py \
+  --dataset examples/fiqa/query_doc_examples.csv \
+  --cases examples/fiqa/regression_cases.yaml \
+  --out-dir examples/fiqa/case_sets
+
+# 2. Retrain with mined samples folded into the train split
+python skills/heuriboost-rag/scripts/train_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir examples/fiqa/output \
+  --case-sets examples/fiqa/case_sets \
+  --regression-cases examples/fiqa/regression_cases.yaml
+
+# 3. Eval + ledger (tags the round as having used case_sets)
+python skills/heuriboost-rag/scripts/eval_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir examples/fiqa/output \
+  --split validation \
+  --regression-cases examples/fiqa/regression_cases.yaml \
+  --case-sets-used
+
+# 4. (manual) If a pending case passed AND the baseline check is OK, promote it
+python skills/heuriboost-rag/scripts/regression_ledger.py promote \
+  examples/fiqa/regression_cases.yaml <case_id> --ledger examples/fiqa/ledger.json
+```
+
+**Mining rule** = intersection of three signals: semantic similarity to the
+case's query (`all-MiniLM-L6-v2`, top-K), the same failure shape (hard negative
+at `dense_rank <= --shape-rank`, positive at `dense_rank >= --shape-pos-gap`),
+and the same `failure_type`.
+
+**Isolation**: no mined `query_id` may equal any case's `query_id`, and no mined
+`doc_id` may equal any case's `must_include`/`must_not_include` doc_id. A
+defensive re-check runs again at training load time.
+
+`sentence-transformers` is a build dependency (`requirements-build.txt`), not a
+runtime dependency. Mining reuses `examples/fiqa/.cache/query_embeddings.npz`
+when present.
+
+> **Pipeline-validation caveat**: attack results under heuristic labels are
+> pipeline-validation grade, not benchmark. They test whether the closed-loop
+> mechanics work (mine → train → eval → promote), not whether the attack
+> credibly moves a pending case. Credible attack quality waits for LLM-mode
+> labels (`--label-mode llm` in `build_fiqa_csv.py`).
+
+## Reports
+
+`eval_reranker.py` writes to `examples/fiqa/output/reports/`:
+
+| File | Contents |
+|---|---|
+| `eval_report.md` | Global metrics + regression gate status (Gates + Pending sections). |
+| `ranking_diff.csv` | Before/after rank movement (dense rank as default baseline). |
+| `failure_cases.md` | Hard-negative exposure report for the top 3. |
+| `failure_analysis.md` | Deterministic regression-case analysis: reason summary, rank movement, evidence hits, feature contrast, suggested next actions. |
+| `feature_importance.json` | XGBoost gain-based feature importance, normalized across the feature list. |
+
+`failure_analysis.md` is deterministic lite analysis, not automatic feature
+discovery.
+
+## Agent skill
+
+The Codex-compatible skill lives in `skills/heuriboost-rag/SKILL.md` and exposes
+three modes:
+
+- `audit` — scan a RAG repo for retriever/eval/log/dataset signals
+- `bootstrap` — copy templates and explain the CSV contract
+- `experiment` — validate CSV, train, evaluate, and inspect reports
+
+Other coding agents can run the Python scripts manually.
+
+## Regenerating the demo dataset
+
+The committed `examples/fiqa/query_doc_examples.csv` is generated offline from
+BEIR/FiQA-2018 by `build_fiqa_csv.py`. It runs BM25 + `all-MiniLM-L6-v2` + RRF
+retrieval (FiQA ships no candidates), then labels with one of two modes.
+
+Heuristic mode — zero-cost, deterministic, no LLM (this produced the committed CSV):
+
+```bash
+python -m pip install -r skills/heuriboost-rag/requirements-build.txt
+python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
+  --label-mode heuristic --output examples/fiqa/query_doc_examples.csv
+```
+
+LLM mode — full 5-level labels via an OpenAI-compatible judge (DeepSeek by default):
+
+```bash
+python -m pip install -r skills/heuriboost-rag/requirements-build.txt
+export DEEPSEEK_API_KEY=sk-...   # or OPENAI_API_KEY with --base-url ""
+python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
+  --label-mode llm --output examples/fiqa/query_doc_examples.csv
+```
+
+Both modes need network access (to download FiQA); only LLM mode needs an API
+key. The build runs locally, not in CI. Heavy build dependencies, the FiQA
+corpus, and dense-encoder weights are not committed. See
+`examples/fiqa/DATA_CARD.md` for provenance.
