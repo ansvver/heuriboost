@@ -1,1 +1,4 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/06-27-heuriboost-rag-skill-v0/prd.md", "reason": "Authoritative V0 requirements, now updated to the single FiQA demo (R4/R5/R6)."}
+{"file": ".trellis/tasks/06-27-heuriboost-rag-skill-v0/design.md", "reason": "V0 design: layout, feature set, evaluation, and build-vs-runtime dependency split."}
+{"file": "CONTEXT.md", "reason": "Domain glossary resolved during grilling: Reranker/Baseline/Hard negative/LLM-judged label/Data card/FiQA demo terms and the invariants they imply."}
+{"file": "docs/specs/QD_RERANKER_SPEC.md", "reason": "Source spec for QD reranking data model, feature taxonomy, regression-gate rules, and evaluation metrics."}

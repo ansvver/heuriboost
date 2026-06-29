@@ -1,15 +1,15 @@
 cases:
-  - case_id: gross_margin_q3_wrong_year
-    query_id: q_example_001
-    query: "What caused 2024 Q3 gross margin decline?"
+  - case_id: fiqa_expense_deduction_wrong_topic
+    query_id: fiqa_q_001
+    query: "Can I deduct home-office expenses as a sole proprietor?"
     must_include_doc_ids:
-      - doc_2024_q3_earnings
+      - fiqa_doc_home_office_deduction
     must_not_include_doc_ids:
-      - doc_2023_q3_earnings
+      - fiqa_doc_corporate_office_lease
     top_k: 3
-    failure_type: temporal_hard_negative
+    failure_type: semantic_hard_negative
     expected_evidence:
-      - "2024 Q3"
-      - "gross margin"
-      - "raw material costs"
-    notes: "Old-year document is semantically similar but cannot support the answer."
+      - "home office"
+      - "deduction"
+      - "sole proprietor"
+    notes: "Same financial topic but answers a different entity/situation; retriever ranked it high, but it cannot support the answer."

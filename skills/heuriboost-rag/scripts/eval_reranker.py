@@ -129,18 +129,18 @@ def analyze_reason(case, positive_row, negative_row, positive_features, negative
             pass
 
     if positive_features and negative_features:
-        if negative_features.get("wrong_year_flag", 0.0) > positive_features.get(
-            "wrong_year_flag", 0.0
+        if negative_features.get("entity_overlap_count", 0.0) < positive_features.get(
+            "entity_overlap_count", 0.0
         ):
-            reasons.append("forbidden doc has a stronger wrong-year signal")
-        if positive_features.get("year_overlap_count", 0.0) > negative_features.get(
-            "year_overlap_count", 0.0
+            reasons.append("required doc shares more query entities")
+        if positive_features.get("number_overlap_count", 0.0) > negative_features.get(
+            "number_overlap_count", 0.0
         ):
-            reasons.append("required doc matches the query year better")
-        if positive_features.get("quarter_overlap_count", 0.0) > negative_features.get(
-            "quarter_overlap_count", 0.0
+            reasons.append("required doc matches more query numbers")
+        if positive_features.get("important_term_overlap", 0.0) > negative_features.get(
+            "important_term_overlap", 0.0
         ):
-            reasons.append("required doc matches the query quarter better")
+            reasons.append("required doc matches more important query terms")
         if positive_features.get("term_overlap_ratio", 0.0) > negative_features.get(
             "term_overlap_ratio", 0.0
         ):
@@ -154,9 +154,10 @@ def analyze_reason(case, positive_row, negative_row, positive_features, negative
 def suggest_next_actions(reasons: list[str], case) -> list[str]:
     actions = []
     joined = " ".join(reasons).lower()
-    failure_type = str(case.get("failure_type", "")).lower()
-    if "wrong-year" in joined or "year" in joined or "temporal" in failure_type:
-        actions.append("keep or strengthen temporal match features such as year/quarter overlap")
+    if "entity" in joined or "number" in joined or "important term" in joined:
+        actions.append(
+            "inspect entity/number/important-term overlap features for this slice"
+        )
     if "term overlap" in joined:
         actions.append("inspect lexical/evidence overlap features for this query slice")
     if "retriever ranked forbidden doc higher" in joined:
@@ -393,9 +394,9 @@ def write_failure_analysis(path: Path, analyses: list[dict]) -> None:
             for feature in (
                 "dense_score",
                 "term_overlap_ratio",
-                "year_overlap_count",
-                "quarter_overlap_count",
-                "wrong_year_flag",
+                "number_overlap_count",
+                "entity_overlap_count",
+                "important_term_overlap",
             ):
                 lines.append(f"- {format_feature_delta(feature, required_features, forbidden_features)}")
             lines.append("")

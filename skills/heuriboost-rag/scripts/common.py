@@ -38,10 +38,10 @@ FEATURE_NAMES = [
     "sparse_rank_inverse",
     "rrf_score",
     "term_overlap_ratio",
-    "numeric_overlap_count",
-    "year_overlap_count",
-    "quarter_overlap_count",
-    "wrong_year_flag",
+    "number_overlap_count",
+    "entity_overlap_count",
+    "important_term_overlap",
+    "low_information_density_flag",
     "doc_length_log",
     "query_length_log",
 ]
@@ -177,16 +177,14 @@ def tokenize(text: str) -> set[str]:
     return set(re.findall(r"[a-zA-Z0-9]+", str(text).lower()))
 
 
-def years(text: str) -> set[str]:
-    return set(re.findall(r"\b(?:19|20)\d{2}\b", str(text)))
-
-
-def quarters(text: str) -> set[str]:
-    return set(match.upper() for match in re.findall(r"\bQ[1-4]\b", str(text), re.I))
-
-
 def numbers(text: str) -> set[str]:
     return set(re.findall(r"\b\d+(?:\.\d+)?%?\b", str(text)))
+
+
+def entities(text: str) -> set[str]:
+    # Deterministic, dependency-free proxy for proper nouns / acronyms:
+    # capitalized words (e.g. "Roth", "IRA") and all-caps acronyms (e.g. "ETF").
+    return set(re.findall(r"\b[A-Z][a-zA-Z]+\b|\b[A-Z]{2,}\b", str(text)))
 
 
 def numeric_value(row, column: str, default: float = 0.0) -> float:
@@ -215,10 +213,6 @@ def extract_features(df):
         query_tokens = tokenize(query_text)
         doc_tokens = tokenize(doc_text)
         shared_tokens = query_tokens & doc_tokens
-        query_years = years(query_text)
-        doc_years = years(doc_text)
-        query_quarters = quarters(query_text)
-        doc_quarters = quarters(doc_text)
 
         dense_rank_inv = rank_inverse(row, "dense_rank")
         sparse_rank_inv = rank_inverse(row, "sparse_rank")
@@ -230,9 +224,16 @@ def extract_features(df):
         if sparse_rank > 0:
             rrf_score += 1.0 / (60.0 + sparse_rank)
 
-        wrong_year = 0.0
-        if query_years and doc_years and not (query_years & doc_years):
-            wrong_year = 1.0
+        # Overlap of rarer/important terms approximated by longer shared tokens.
+        important_term_overlap = float(
+            sum(1 for token in shared_tokens if len(token) >= 6)
+        )
+
+        # Low-information-density proxy: low unique-token ratio or very short doc.
+        unique_ratio = len(set(doc_tokens)) / max(len(doc_tokens), 1)
+        low_information_density = (
+            1.0 if (unique_ratio < 0.5 or len(doc_tokens) < 5) else 0.0
+        )
 
         rows.append(
             {
@@ -242,10 +243,12 @@ def extract_features(df):
                 "sparse_rank_inverse": sparse_rank_inv,
                 "rrf_score": rrf_score,
                 "term_overlap_ratio": len(shared_tokens) / max(len(query_tokens), 1),
-                "numeric_overlap_count": float(len(numbers(query_text) & numbers(doc_text))),
-                "year_overlap_count": float(len(query_years & doc_years)),
-                "quarter_overlap_count": float(len(query_quarters & doc_quarters)),
-                "wrong_year_flag": wrong_year,
+                "number_overlap_count": float(len(numbers(query_text) & numbers(doc_text))),
+                "entity_overlap_count": float(
+                    len(entities(query_text) & entities(doc_text))
+                ),
+                "important_term_overlap": important_term_overlap,
+                "low_information_density_flag": low_information_density,
                 "doc_length_log": math.log1p(len(doc_tokens)),
                 "query_length_log": math.log1p(len(query_tokens)),
             }

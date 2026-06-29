@@ -21,9 +21,14 @@ skills/heuriboost-rag/
     validate_dataset.py
     train_reranker.py
     eval_reranker.py
-examples/financial_rag/
-  query_doc_examples.csv
-  regression_cases.yaml
+    build_fiqa_csv.py
+  requirements.txt
+  requirements-build.txt
+examples/fiqa/
+  query_doc_examples.csv   # committed (generated offline)
+  regression_cases.yaml    # committed (hand-confirmed)
+  DATA_CARD.md
+  .cache/                  # gitignored build intermediates
 ```
 
 The minimum runnable substrate is standalone scripts under the skill directory:
@@ -80,14 +85,14 @@ Create a local HeuriBoost workspace:
 - copy CSV/YAML templates
 - create empty reports/models directories
 - add a README snippet explaining the input contract
-- optionally copy the financial RAG demo
+- optionally copy the FiQA demo CSV
 
 ### experiment
 
 Run the local reranking loop:
 
 - validate CSV columns and split values
-- compute V0 lexical/time/entity features from query and document text
+- compute V0 lexical/entity/evidence features from query and document text
 - train a real XGBoost LambdaMART model grouped by `query_id`
 - compare against dense/sparse/RRF baselines when rank/score columns exist
 - evaluate global metrics and hard-negative slices
@@ -96,22 +101,26 @@ Run the local reranking loop:
   evidence-term hits, and V0 feature contrasts
 - emit reports and model artifacts
 
-The demo is not complete unless the scripts produce reports and a model artifact from `examples/financial_rag/query_doc_examples.csv`.
+The demo is not complete unless the scripts produce reports and a model artifact from `examples/fiqa/query_doc_examples.csv`. That CSV is generated offline by `build_fiqa_csv.py` and committed; the build script is not part of the demo's runtime path.
 
 ## Feature Approach
 
-V0 should begin with a small feature set:
+V0 should begin with a small feature set targeting FiQA-style (non-temporal)
+hard negatives:
 
 - dense rank/score when present
 - sparse rank/score when present
 - RRF score when both ranks are present
-- exact term overlap
-- numeric/token overlap
-- date/year overlap
-- query-doc length ratios
-- wrong-year flag where detectable
+- exact term overlap ratio
+- number overlap count
+- entity overlap count
+- important-term overlap
+- low-information-density flag
+- query/doc length features
 
-All nontrivial features should be declared in `feature_recipes.yaml` before being computed.
+`feature_recipes.yaml` should list these features and stay consistent with the
+hardcoded feature set in `common.py`. A formal feature registry/DSL is deferred
+beyond V0.
 
 ## Evaluation
 
@@ -133,8 +142,8 @@ using:
 - regression-case `failure_type`
 - required vs forbidden document rank movement
 - expected evidence term hits
-- selected feature contrasts such as `year_overlap_count`, `quarter_overlap_count`,
-  `wrong_year_flag`, and `term_overlap_ratio`
+- selected feature contrasts such as `entity_overlap_count`, `number_overlap_count`,
+  `important_term_overlap`, and `term_overlap_ratio`
 
 It must not generate new feature recipes, run ablations, or promote/reject
 features in V0.
@@ -173,6 +182,15 @@ python -m pip install -r skills/heuriboost-rag/requirements.txt
 ```
 
 Do not silently fall back to a fake model. If `xgboost` is unavailable, training should stop with a clear dependency error.
+
+The offline demo-build script `build_fiqa_csv.py` has heavier dependencies
+(`rank-bm25`, `sentence-transformers`, `datasets`, and an LLM client) that the
+demo runtime does not need. These are isolated in a separate
+`skills/heuriboost-rag/requirements-build.txt` so that `git clone` + train/eval
+stays lightweight. The build script downloads the FiQA corpus into a gitignored
+cache (`examples/fiqa/.cache/`) and uses model weights from the standard
+Hugging Face cache; neither the corpus, the weights, nor the build packages are
+committed.
 
 ## Tradeoffs
 

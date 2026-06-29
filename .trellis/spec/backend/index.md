@@ -19,6 +19,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | V0 runtime documented |
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
+| [FiQA Demo & Feature-Set Contracts](./fiqa-demo-contracts.md) | FiQA build obligations, label/feature leakage rules, FEATURE_NAMES consistency | Documented 2026-06-29 |
 
 ---
 

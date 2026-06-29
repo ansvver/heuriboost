@@ -38,27 +38,39 @@ feature_set:
       online_safe: true
       leakage_risk: low
       description: "Share of unique query tokens present in the document text."
-    - name: numeric_overlap_count
+    - name: number_overlap_count
       type: numeric
       default_value: 0.0
       online_safe: true
       leakage_risk: low
       description: "Count of numeric tokens shared by query and document."
-    - name: year_overlap_count
+    - name: entity_overlap_count
       type: numeric
       default_value: 0.0
       online_safe: true
       leakage_risk: low
-      description: "Count of four-digit years shared by query and document."
-    - name: quarter_overlap_count
+      description: "Count of capitalized/acronym entity tokens shared by query and document."
+    - name: important_term_overlap
       type: numeric
       default_value: 0.0
       online_safe: true
       leakage_risk: low
-      description: "Count of Q1-Q4 expressions shared by query and document."
-    - name: wrong_year_flag
+      description: "Count of shared query/document tokens of length >= 6 (proxy for rarer/important terms)."
+    - name: low_information_density_flag
       type: numeric
       default_value: 0.0
       online_safe: true
       leakage_risk: low
-      description: "1 when query has a year and document has a different year with no overlap."
+      description: "1 when the document has a low unique-token ratio or is very short."
+    - name: doc_length_log
+      type: numeric
+      default_value: 0.0
+      online_safe: true
+      leakage_risk: low
+      description: "log1p of the document token count."
+    - name: query_length_log
+      type: numeric
+      default_value: 0.0
+      online_safe: true
+      leakage_risk: low
+      description: "log1p of the query token count."

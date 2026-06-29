@@ -41,6 +41,8 @@ Core story:
 - V0 should document Python 3.10+ as the minimum runtime.
 - V0 should author `skills/heuriboost-rag/SKILL.md` in a Codex-compatible skill format. Other agents can run the scripts manually, but V0 does not provide full multi-agent installation support.
 - V0 should include deterministic failure analysis lite, not automatic feature discovery.
+- V0 ships a single demo from a real public dataset (BEIR/FiQA-2018), not a hand-built toy demo. The committed CSV is generated offline by `build_fiqa_csv.py`; that script's heavy dependencies, the downloaded corpus, and model weights are not committed.
+- V0 features target FiQA-style (non-temporal) hard negatives: dense/sparse/RRF, term overlap, number overlap, entity overlap, important-term overlap, low-information-density flag, and length features. Temporal year/quarter/wrong-year features are removed.
 
 ## Requirements
 
@@ -109,21 +111,23 @@ V0 must support self-contained `doc_text` for zero-dependency demos. It may also
 
 ### R4. Regression Case Template
 
-V0 must provide a human-editable failure-to-regression template:
+V0 must provide a human-editable failure-to-regression template. Cases are
+mined from observed FiQA rerank failures (a high-ranked candidate that does not
+support the answer) and hand-confirmed by a human before becoming a gate:
 
 ```yaml
-case_id: gross_margin_q3_wrong_year
-query: "2024 Q3 gross margin decline reason?"
+case_id: fiqa_expense_deduction_wrong_topic
+query: "Can I deduct home-office expenses as a sole proprietor?"
 must_include_doc_ids:
-  - doc_2024_q3_earnings
+  - fiqa_doc_home_office_deduction
 must_not_include_doc_ids:
-  - doc_2023_q3_earnings
-failure_type: temporal_hard_negative
+  - fiqa_doc_corporate_office_lease
+failure_type: semantic_hard_negative
 expected_evidence:
-  - "2024 Q3"
-  - "gross margin"
-  - "raw material cost"
-notes: "Old-year document is semantically similar but cannot support the answer."
+  - "home office"
+  - "deduction"
+  - "sole proprietor"
+notes: "Same financial topic but answers a different entity/situation; retriever ranked it high, but it cannot support the answer."
 ```
 
 ### R5. V0 Outputs
@@ -134,7 +138,7 @@ The experiment mode must be backed by runnable local scripts. At minimum, V0 sho
 - `train_reranker.py`
 - `eval_reranker.py`
 
-These scripts should be able to run the financial RAG demo end to end without framework-specific adapters.
+These scripts should be able to run the FiQA demo end to end without framework-specific adapters. A separate `build_fiqa_csv.py` (with its own `requirements-build.txt`) regenerates the demo CSV offline using BM25 + a dense encoder + RRF retrieval and an LLM judge for labels; it is not on the demo's runtime path.
 
 V0 should not add a formal package/CLI scaffold. Do not add `pyproject.toml`, package versioning, publish workflow, or stable public Python API until the skill workflow and demo are validated.
 
@@ -155,12 +159,25 @@ The experiment mode should produce these planned outputs:
 
 ### R6. Demo
 
-V0 must include a small `examples/financial_rag/` demo that shows:
+V0 must include a single `examples/fiqa/` demo built from a slice of BEIR/FiQA-2018
+(~150 train / 40 validation / 40 test queries, top-20 candidates, doc_text ≤400
+chars), with dense/sparse/RRF scores and 5-level labels produced offline by
+`build_fiqa_csv.py`. The committed CSV is checked in; the build script's heavy
+dependencies, downloaded corpus, and model weights are NOT committed. The demo
+must show:
 
-- a time-sensitive financial query
-- a semantically similar wrong-year hard negative
+- a real financial-QA query from FiQA
+- a semantically similar but unsupported hard negative the retriever ranked high
 - the correct evidence document rising after reranking
-- a regression case that prevents the known bad rerank from passing gates
+- the learned reranker beating dense/sparse/RRF baselines on validation nDCG@10 / MRR@10
+- a hand-confirmed regression case that prevents a known bad rerank from passing gates
+
+Provenance (source, CC BY-SA 4.0 license, retriever config, LLM-judge model/prompt/date)
+is recorded in `examples/fiqa/DATA_CARD.md`.
+
+Note: the toy hand-built financial demo (`examples/financial_rag/`) and the
+temporal `wrong_year` hard-negative are removed in this revision; FiQA is the
+single V0 demo.
 
 ### R7. Non-goals
 
@@ -190,7 +207,7 @@ V0 explicitly does not:
 - [ ] The plan targets a Codex-compatible skill format and limits other-agent support to manual script usage.
 - [ ] The plan includes a regression-case template for turning past RAG failures into gates.
 - [ ] The plan includes deterministic failure analysis lite while keeping automatic feature discovery out of V0.
-- [ ] The plan defines expected V0 outputs and the toy financial RAG demo.
+- [ ] The plan defines expected V0 outputs and the single FiQA demo (with offline `build_fiqa_csv.py` and data card).
 - [ ] The plan records V0 non-goals so the first release does not expand into a generic ML platform.
 
 ## Open Questions

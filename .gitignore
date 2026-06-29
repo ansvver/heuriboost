@@ -32,7 +32,8 @@ htmlcov/
 
 # HeuriBoost generated outputs
 heuriboost_output/
-examples/financial_rag/output/
+examples/fiqa/output/
+examples/fiqa/.cache/
 
 # Trellis local runtime state
 .trellis/.developer

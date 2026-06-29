@@ -4,30 +4,30 @@
 
 [English README](./README.md)
 
-你的 RAG 系统在回答 2024 Q3 问题时，引用了 2023 Q3 文档。
+你的 RAG 系统在回答一个个人理财问题时，引用了一段“场景错位”的文档。
 
 这不一定是召回完全失败。retriever 可能已经找到了正确证据，但同时也找到了
-一个语义很像的 hard negative，并且把这个错误年份的文档排得太高。generator
-看到的是“看起来很相关、但不能支撑答案”的证据。
+一个语义很像的 hard negative —— 金融主题相同，但实体/情境错误 —— 并且把这段
+误导性文档排得太高。generator 看到的是“看起来很相关、但不能支撑答案”的证据。
 
 HeuriBoost 把这种失败转成一次 reranking 升级：
 
 ```text
-query: "What caused 2024 Q3 gross margin decline?"
+query: "Can I deduct home-office expenses as a sole proprietor?"
 
 dense retrieval:
-  #1 doc_2023_q3_margin   hard negative：主题对，年份错
-  #2 doc_2024_q3_ops      部分证据
-  #3 doc_2024_q3_margin   直接证据
+  #1 fiqa_doc_corporate_office_lease   hard negative：主题对，实体错
+  #2 fiqa_doc_standard_deduction       证据弱/无关
+  #3 fiqa_doc_home_office_deduction    直接证据
 
 HeuriBoost rerank:
-  #1 doc_2024_q3_margin   直接证据
-  #2 doc_2024_q3_ops      部分证据
-  #4 doc_2023_q3_margin   被记住的 hard negative
+  #1 fiqa_doc_home_office_deduction    直接证据
+  #2 fiqa_doc_simplified_method        部分证据
+  #4 fiqa_doc_corporate_office_lease   被记住的 hard negative
 ```
 
-它还会把这个错误写成 regression gate，确保下一版 reranker 不能再把这个错误年份
-文档放进受保护的 top-k。
+它还会把这个错误写成 regression gate，确保下一版 reranker 不能再把这段
+误导性文档放进受保护的 top-k。
 
 ## 核心闭环
 
@@ -51,7 +51,9 @@ V0 的闭环故意很小：
 
 - 校验标准 query-document CSV 契约。
 - 按 `query_id` 分组训练真实 XGBoost ranking model。
-- 使用固定 V0 特征集：retriever rank/score 和 query-document 文本重叠。
+- 使用固定 V0 特征集：retriever rank/score 和 query-document 文本信号——
+  term overlap、number overlap、entity overlap、important-term overlap、
+  low-information-density flag 和长度特征。
 - 评估 nDCG、MRR、Recall、hard-negative exposure。
 - 输出 ranking diff、feature importance、regression gate 结果和轻量失败分析。
 - 以 Codex-compatible skill + 本地可运行脚本的方式交付。
@@ -85,19 +87,22 @@ regression case 元数据、排序变化、期望证据命中情况和 V0 特征
 │       ├── QD_RERANKER_SPEC.md
 │       └── QD_RERANKER_SPEC_CN.html
 ├── examples/
-│   └── financial_rag/
+│   └── fiqa/
 │       ├── query_doc_examples.csv
-│       └── regression_cases.yaml
+│       ├── regression_cases.yaml
+│       └── DATA_CARD.md
 └── skills/
     └── heuriboost-rag/
         ├── SKILL.md
         ├── requirements.txt
+        ├── requirements-build.txt
         ├── scripts/
         │   ├── common.py
         │   ├── inspect_rag_repo.py
         │   ├── validate_dataset.py
         │   ├── train_reranker.py
-        │   └── eval_reranker.py
+        │   ├── eval_reranker.py
+        │   └── build_fiqa_csv.py
         └── templates/
             ├── query_doc_examples.csv
             ├── regression_cases.yaml
@@ -124,25 +129,25 @@ brew install libomp
 校验 demo 数据：
 
 ```bash
-python3 skills/heuriboost-rag/scripts/validate_dataset.py examples/financial_rag/query_doc_examples.csv
+python3 skills/heuriboost-rag/scripts/validate_dataset.py examples/fiqa/query_doc_examples.csv
 ```
 
 训练 reranker：
 
 ```bash
-python3 skills/heuriboost-rag/scripts/train_reranker.py examples/financial_rag/query_doc_examples.csv --output-dir examples/financial_rag/output
+python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output
 ```
 
 评估并运行 regression gate：
 
 ```bash
-python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/financial_rag/query_doc_examples.csv --output-dir examples/financial_rag/output --regression-cases examples/financial_rag/regression_cases.yaml
+python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
 ```
 
 预期输出：
 
 ```text
-examples/financial_rag/output/
+examples/fiqa/output/
 ├── models/
 │   ├── reranker.json
 │   └── reranker_metadata.json
@@ -157,6 +162,22 @@ examples/financial_rag/output/
 ```
 
 生成的 `output/` 目录会被 git 忽略。
+
+## 重新生成 demo 数据集
+
+提交进仓库的 `examples/fiqa/query_doc_examples.csv` 是由
+`skills/heuriboost-rag/scripts/build_fiqa_csv.py` 从 BEIR/FiQA-2018 离线生成的。
+重新生成方式：
+
+```bash
+python -m pip install -r skills/heuriboost-rag/requirements-build.txt
+export OPENAI_API_KEY=sk-...
+python skills/heuriboost-rag/scripts/build_fiqa_csv.py --output examples/fiqa/query_doc_examples.csv
+```
+
+这一步需要联网（下载 FiQA）和 LLM API key（判定标签），因此由维护者在本地运行，
+不在 CI 中执行。其重依赖、下载的 FiQA 语料以及 dense encoder 权重都不会提交进仓库。
+数据来源记录见 `examples/fiqa/DATA_CARD.md`。
 
 ## CSV 契约
 
@@ -201,19 +222,19 @@ Regression case 是 gate，不是训练样本。
 
 ```yaml
 cases:
-  - case_id: q_val_margin_2024_q3_wrong_year
-    query_id: q_val_margin_2024_q3
-    query: "What caused 2024 Q3 gross margin decline?"
+  - case_id: fiqa_expense_deduction_wrong_topic
+    query_id: fiqa_q_001
+    query: "Can I deduct home-office expenses as a sole proprietor?"
     must_include_doc_ids:
-      - doc_2024_q3_margin
+      - fiqa_doc_home_office_deduction
     must_not_include_doc_ids:
-      - doc_2023_q3_margin
+      - fiqa_doc_corporate_office_lease
     top_k: 3
-    failure_type: temporal_hard_negative
+    failure_type: semantic_hard_negative
     expected_evidence:
-      - "2024 Q3"
-      - "gross margin"
-      - "raw material costs"
+      - "home office"
+      - "deduction"
+      - "sole proprietor"
 ```
 
 如果 required doc 掉出 top-k，或者 forbidden doc 进入 top-k，
@@ -257,8 +278,9 @@ skills/heuriboost-rag/SKILL.md
 
 状态：V0 prototype。
 
-demo 使用了一个小型 financial RAG 场景：2023 Q3 文档和 2024 Q3 问题语义相近，
-但不能支撑 2024 Q3 的答案。HeuriBoost 会把真正的 2024 Q3 证据文档排上来，
-并把 wrong-year hard negative 压下去。
+demo 使用了 BEIR/FiQA-2018（金融问答）的真实切片：一段金融主题相同、但
+实体/情境错误的文档和 query 语义相近，却不能支撑答案。HeuriBoost 会把真正
+能支撑答案的文档排上来，并把这段误导性的 hard negative 压下去。提交进仓库的
+CSV 是离线生成的（见“重新生成 demo 数据集”和 `examples/fiqa/DATA_CARD.md`）。
 
 长文设计规格位于 `docs/specs/`。

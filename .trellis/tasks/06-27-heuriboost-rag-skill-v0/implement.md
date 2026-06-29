@@ -37,17 +37,40 @@
 - [x] Emit reports and artifacts under `reports/`, `models/`, and `regression_cases.yaml`.
 - [x] Add deterministic failure analysis lite report.
 
-## Phase 4: Verification
+## Phase 4: Verification (original financial demo)
 
 - [x] Run the financial RAG demo end to end.
 - [x] Confirm reports show before/after ranking changes.
 - [x] Confirm a wrong-year hard negative can be represented as a regression case.
 - [x] Confirm the skill instructions are actionable without hidden assumptions.
 
-## Validation Commands
+## Phase 5: FiQA Pivot (2026-06-29)
+
+Reason: the toy financial demo cannot honestly back the "beats baselines" claim
+(n=1 validation, rigged ranks). Replace it with a single real-dataset demo
+(BEIR/FiQA-2018) and retarget features to FiQA-style hard negatives.
+
+- [ ] Delete `examples/financial_rag/`; update `.gitignore` (drop financial output, add `examples/fiqa/output/` and `examples/fiqa/.cache/`).
+- [ ] Replace feature set in `common.py`: remove `year_overlap_count`/`quarter_overlap_count`/`wrong_year_flag`; rename `numeric_overlap_count` -> `number_overlap_count`; add `entity_overlap_count`/`important_term_overlap`/`low_information_density_flag`.
+- [ ] Rewrite `eval_reranker.py` `analyze_reason()`, `suggest_next_actions()`, and Feature Contrast block for the new feature set.
+- [ ] Add `build_fiqa_csv.py` (BM25 + MiniLM + RRF retrieval, build-time LLM judge, native FiQA split, caps 150/40/40, top-20, doc_text<=400, `--cache-dir`). Author-only; run locally by the user, not in CI/agent.
+- [ ] Add `requirements-build.txt` (rank-bm25, sentence-transformers, datasets, LLM client).
+- [ ] Add `examples/fiqa/DATA_CARD.md` (source, CC BY-SA 4.0, retriever config, judge model/prompt/date, "weights/corpus/build-deps not committed").
+- [ ] Update `README.md`, `README.zh-CN.md`, `CODEBUDDY.md`, `CONTEXT.md` to the FiQA narrative and paths.
+- [ ] Update templates `feature_recipes.yaml` (match FEATURE_NAMES), `query_doc_examples.csv`, `regression_cases.yaml` to FiQA style.
+- [ ] User runs `build_fiqa_csv.py` locally to produce and commit `examples/fiqa/query_doc_examples.csv`; mine 5-8 failures, hand-confirm as regression cases.
+
+## Validation Commands (after user generates the FiQA CSV)
 
 ```bash
-python skills/heuriboost-rag/scripts/validate_dataset.py examples/financial_rag/query_doc_examples.csv
-python skills/heuriboost-rag/scripts/train_reranker.py examples/financial_rag/query_doc_examples.csv
-python skills/heuriboost-rag/scripts/eval_reranker.py examples/financial_rag/query_doc_examples.csv --regression-cases examples/financial_rag/regression_cases.yaml
+python skills/heuriboost-rag/scripts/validate_dataset.py examples/fiqa/query_doc_examples.csv
+python skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output
+python skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
+```
+
+To (re)generate the demo CSV offline:
+
+```bash
+python -m pip install -r skills/heuriboost-rag/requirements-build.txt
+python skills/heuriboost-rag/scripts/build_fiqa_csv.py --output examples/fiqa/query_doc_examples.csv
 ```

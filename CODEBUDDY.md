@@ -17,7 +17,7 @@ Primary files:
 - `skills/heuriboost-rag/SKILL.md` — Codex-compatible skill instructions.
 - `skills/heuriboost-rag/scripts/` — runnable V0 validation, training, and evaluation scripts.
 - `skills/heuriboost-rag/templates/` — user-copyable CSV/YAML templates.
-- `examples/financial_rag/` — end-to-end toy RAG reranking demo.
+- `examples/fiqa/` — end-to-end FiQA-2018 RAG reranking demo (CSV generated offline by `build_fiqa_csv.py`).
 - `docs/specs/ADAPTIVE_XGBOOST_HEURISTIC_SPEC.md` — general adaptive XGBoost framework spec.
 - `docs/specs/QD_RERANKER_SPEC.md` — Q-D reranker specialization for RAG retrieval reranking.
 - `docs/specs/*_CN.html` — Chinese HTML companion files.
@@ -33,19 +33,19 @@ python -m pip install -r skills/heuriboost-rag/requirements.txt
 Validate the demo dataset:
 
 ```bash
-python3 skills/heuriboost-rag/scripts/validate_dataset.py examples/financial_rag/query_doc_examples.csv
+python3 skills/heuriboost-rag/scripts/validate_dataset.py examples/fiqa/query_doc_examples.csv
 ```
 
 Train the demo reranker:
 
 ```bash
-python3 skills/heuriboost-rag/scripts/train_reranker.py examples/financial_rag/query_doc_examples.csv --output-dir examples/financial_rag/output
+python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output
 ```
 
 Evaluate and run regression gates:
 
 ```bash
-python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/financial_rag/query_doc_examples.csv --output-dir examples/financial_rag/output --regression-cases examples/financial_rag/regression_cases.yaml
+python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
 ```
 
 Syntax-check scripts:
@@ -54,7 +54,11 @@ Syntax-check scripts:
 python3 -m py_compile skills/heuriboost-rag/scripts/*.py
 ```
 
-Generated demo outputs under `examples/financial_rag/output/` are ignored.
+The FiQA demo CSV (`examples/fiqa/query_doc_examples.csv`) is generated offline
+by `build_fiqa_csv.py` and committed; its build dependencies
+(`requirements-build.txt`), the downloaded FiQA corpus, and the dense-encoder
+weights are NOT committed. Generated demo outputs under `examples/fiqa/output/`
+and the build cache `examples/fiqa/.cache/` are ignored.
 
 ## Big-Picture Architecture
 
@@ -171,17 +175,19 @@ Use this order from the specs when building the first implementation:
 skills/heuriboost-rag/
   SKILL.md
   requirements.txt
-  scripts/{common.py,inspect_rag_repo.py,validate_dataset.py,train_reranker.py,eval_reranker.py}
+  requirements-build.txt
+  scripts/{common.py,inspect_rag_repo.py,validate_dataset.py,train_reranker.py,eval_reranker.py,build_fiqa_csv.py}
   templates/{query_doc_examples.csv,regression_cases.yaml,feature_recipes.yaml,promotion_gate.yaml}
-examples/financial_rag/
+examples/fiqa/
   query_doc_examples.csv
   regression_cases.yaml
+  DATA_CARD.md
 docs/specs/
   ADAPTIVE_XGBOOST_HEURISTIC_SPEC.md
   QD_RERANKER_SPEC.md
 ```
 
-Generated demo output is written under `examples/financial_rag/output/` and ignored by git.
+Generated demo output is written under `examples/fiqa/output/` and ignored by git.
 
 ## Future Layouts From Specs
 
