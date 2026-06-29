@@ -32,50 +32,73 @@ invariant holds).
 - `failure_analysis.md` (produced by `eval_reranker.py`) already has per-case
   Feature Contrast (required vs forbidden delta for each feature) + Suggested
   Next Actions — natural input for candidate generation.
-- FeatureRecipe registry (just shipped) validates candidates at load time — any
-  generated candidate MUST satisfy `ALLOWED_INPUTS`, `online_safe`, required
-  fields or it won't load.
-- HPO adapter does NOT exist yet (separate checklist item) → full A/B/C/D
-  ablation is NOT possible in this task.
+- FeatureRecipe registry (shipped `2ab3ca1`/`243e30e`) validates candidates at
+  load time — any generated candidate MUST satisfy `ALLOWED_INPUTS`,
+  `online_safe`, required fields or it won't load.
+- HPO adapter (shipped `0db0bba`, child #1) + A/B/C/D ablation framework
+  (shipped `5e821e3`, child #2) are done — the candidate-testing half of the
+  loop is complete.
 - Project invariants: promotion is always manual; train never reads cases as
   training rows; `FeatureMemory` is deferred.
 
 ## Resolved decisions (scope split)
 
-This is a **parent task**. The full LLM-driven + Full A/B/C/D scope spans multiple
-independently verifiable children with two external blockers (HPO adapter not
-yet built; LLM key needs rotation). Per the multi-deliverable workflow, split
-into parent + children; dependencies written here, not implied by tree position.
+This is a **parent task**. The full LLM-driven + Full A/B/C/D scope spans
+multiple independently verifiable children. Per the multi-deliverable workflow,
+split into parent + children; dependencies written here, not implied by tree
+position.
 
-**Child tasks (in dependency order):**
+**Child tasks:**
 
-| # | Child | Depends on | Independently verifiable? |
-|---|---|---|---|
-| 1 | HPO adapter (wrap external backend, e.g. Optuna) | — | yes (small-budget local run) |
-| 2 | A/B/C/D ablation framework | #1 | yes (uses HPO adapter) |
-| 3 | LLM candidate generation (reads `DEEPSEEK_API_KEY` env) | user rotates leaked key | code yes; end-to-end user runs locally |
-| 4 | Discovery orchestration (generate → ablate → recommend) | #2 + #3 | partial (#3 part user-run) |
+| # | Child | Status | Depends on | Independently verifiable? |
+|---|---|---|---|---|
+| 1 | HPO adapter (Optuna backend) | **done** (`0db0bba`) | — | yes |
+| 2 | A/B/C/D ablation framework | **done** (`5e821e3`) | #1 | yes |
+| 3 | LLM candidate generation (reads `DEEPSEEK_API_KEY` env) | pending | user rotates leaked key | code yes; end-to-end user runs locally |
+| 4 | Discovery orchestration | **deferred** (see below) | — | — |
 
-**Start order**: child 1 (HPO adapter) — no blockers, unblocks child 2.
+**Start order**: child 1 → child 2 (both done). Next: child 3 (blocked on key
+rotation). Child 4 is deferred.
 
 **Scope of THIS parent task**: track the overall goal + child dependency graph.
-Implementation happens in child tasks. The parent is "done" when all children
-land and the end-to-end discovery loop runs (generate → ablate → recommend).
+The end-to-end discovery loop closes once child 3 lands: `#3 generates
+candidates → run_ablation.py (child 2) per candidate → human reads reports +
+promotes manually`. No separate orchestrator needed for V0 (see child 4
+deferral below).
 
 ## Child task dependency graph
 
 ```
-[1 HPO adapter] ──unblocks──> [2 A/B/C/D ablation] ─┐
-                                                     ├──> [4 Discovery orchestration]
-[3 LLM candidate gen] (needs key rotation) ──────────┘
+[1 HPO adapter] ──done──> [2 A/B/C/D ablation] ──done
+                                                   │
+[3 LLM candidate gen] (needs key rotation) ────────┴──> manual loop:
+   #3 output  ->  run_ablation.py per candidate  ->  human promotes
 ```
 
-Each child's PRD must restate the dependency on its parent and any earlier
-children it consumes.
+Each child's PRD restates the dependency on its parent + earlier children.
 
-## Out of scope (likely deferred)
+## Why child 4 (orchestration) is deferred
 
-- Finalist-stage HPO + full A/B/C/D ablation cells (needs HPO adapter).
+Child 4 was originally "Discovery orchestration (generate → ablate →
+recommend)". On inspection, its only V0-relevant responsibility was a for-loop
+over #3's candidates calling #2's `run_ablation.py` — a ~50-line convenience
+wrapper, not an independently verifiable deliverable. The project's
+manual-promotion invariant means there is no auto-promote to automate, and:
+
+- Candidate volume is single-digit → running `run_ablation.py` per candidate
+  manually is fine (each run is seconds).
+- Scout-vs-finalist staging only pays off at higher candidate volume.
+- `FeatureMemory` is a separate concern (spec §15.2 step 9), not needed for the
+  loop to close.
+
+The loop is already complete with #3 (generate) + #2 (ablate, done) + human
+(promote). Child 4 becomes worth a task when candidate volume grows or
+FeatureMemory is needed. Marked **deferred until volume justifies**.
+
+## Out of scope (deferred)
+
+- Child 4 discovery orchestration (deferred — see above).
 - Automatic promotion (project invariant: promotion is manual).
 - `FeatureMemory` (institutional memory of promoted/rejected/quarantined).
+- Scout-vs-finalist staging (optimization for high candidate volume).
 - Online serving of discovered features.
