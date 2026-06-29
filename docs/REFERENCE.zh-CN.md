@@ -5,6 +5,7 @@ HeuriBoost Q-D reranker 的操作参考。[README](../README.zh-CN.md) 讲故事
 
 - [特征 registry](#特征-registry)
 - [HPO](#hpo)
+- [消融](#消融)
 - [CSV 契约](#csv-契约)
 - [标签含义](#标签含义)
 - [Regression cases](#regression-cases)
@@ -78,6 +79,38 @@ python3 skills/heuriboost-rag/scripts/run_hpo.py examples/fiqa/query_doc_example
   `ndcg_at_k`，直接可比。
 - **过拟合说明**：在 40 query 的 FiQA validation 上，HPO 会过拟合（val 比 test
   高约 0.08，test 可能低于 0.83 基线）。报告通过 val−test gap 诚实暴露这一点。
+
+## 消融
+
+`scripts/run_ablation.py` 跑规格 §15.3 的 A/B/C/D 特征消融：给定候选特征，
+测试它在公平 HPO 调参后是否真的有帮助。
+
+```bash
+python3 skills/heuriboost-rag/scripts/run_ablation.py examples/fiqa/query_doc_examples.csv \
+  --candidate-recipe candidate_recipe.yaml \
+  --candidate-impl candidate_impl.py:candidate \
+  --output-dir examples/fiqa/output --n-trials 5 --seed 42 \
+  --regression-cases examples/fiqa/regression_cases.yaml
+```
+
+候选 = recipe YAML（规格 §6.4 字段，`inputs` ⊆ `ALLOWED_INPUTS`）+ impl 函数
+`(row) -> float`（`--candidate-impl pyfile:func`）。框架把它叠加到 shipped
+`extract_all` 上，不改 registry（作为探针）。
+
+4 个 cell（基线±候选 × 固定/HPO 参数）用相同训练过程；B 与 D 用相同 HPO 预算 +
+种子。输出写入 `examples/fiqa/output/ablation/`（被 git 忽略）：
+`ablation_report.md`（cell 表 + deltas + 推荐）+ `ablation_result.json`。
+
+Deltas：B-A（参数增益）、C-A（纯特征增益）、**D-B（调参后候选增益——主要）**、
+D-C（带候选的调参增益）。
+
+推荐（仅报告——晋级永远手动）：
+- `promote` iff D-B(val) > 阈值（默认 0.01）AND D-B(test) > 0 AND D gate 全通过。
+- `reject` iff D-B(val) ≤ 0 或 D 退化 gate。
+- `quarantine` 否则。
+
+val+test+gate 三重检查避免 cherry-pick HPO 过拟合的 val 噪声。完整契约见
+`.trellis/spec/backend/ablation-contracts.md`。
 
 ## CSV 契约
 

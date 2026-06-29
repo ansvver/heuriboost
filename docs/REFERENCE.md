@@ -6,6 +6,7 @@ command details a maintainer needs day to day.
 
 - [Feature registry](#feature-registry)
 - [HPO](#hpo)
+- [Ablation](#ablation)
 - [CSV contract](#csv-contract)
 - [Label scale](#label-scale)
 - [Regression cases](#regression-cases)
@@ -81,6 +82,40 @@ Key contracts (see `.trellis/spec/backend/hpo-contracts.md`):
 - **Overfit caveat**: on the 40-query FiQA validation, HPO overfits (val > test
   by ~0.08, test may fall below the 0.83 baseline). The report surfaces this
   honestly via the val−test gap.
+
+## Ablation
+
+`scripts/run_ablation.py` runs a spec §15.3 A/B/C/D feature ablation: given a
+candidate feature, it tests whether the candidate helps after fair HPO tuning.
+
+```bash
+python3 skills/heuriboost-rag/scripts/run_ablation.py examples/fiqa/query_doc_examples.csv \
+  --candidate-recipe candidate_recipe.yaml \
+  --candidate-impl candidate_impl.py:candidate \
+  --output-dir examples/fiqa/output --n-trials 5 --seed 42 \
+  --regression-cases examples/fiqa/regression_cases.yaml
+```
+
+A candidate = a recipe YAML (spec §6.4 fields, `inputs` ⊆ `ALLOWED_INPUTS`) +
+an impl fn `(row) -> float` (`--candidate-impl pyfile:func`). The framework
+wraps it onto the shipped `extract_all` without modifying the registry (a
+probe).
+
+The 4 cells (baseline±candidate × fixed/HPO params) use the same training
+procedure; B and D use the same HPO budget + seed. Outputs land in
+`examples/fiqa/output/ablation/` (gitignored): `ablation_report.md` (cell
+table + deltas + recommendation) + `ablation_result.json`.
+
+Deltas: B-A (param gain), C-A (feature-only), **D-B (candidate gain after
+tuning — primary)**, D-C (tuning gain with candidate).
+
+Recommendation (report only — promotion is always manual):
+- `promote` iff D-B(val) > threshold (default 0.01) AND D-B(test) > 0 AND D gate cases pass.
+- `reject` iff D-B(val) ≤ 0 OR D regresses a gate case.
+- `quarantine` otherwise.
+
+The dual val+test+gate check avoids cherry-picking HPO-overfit validation
+noise. See `.trellis/spec/backend/ablation-contracts.md` for full contracts.
 
 ## CSV contract
 

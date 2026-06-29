@@ -1,9 +1,9 @@
 {
-  "id": "feature-discovery",
-  "name": "feature-discovery",
-  "title": "Automatic feature discovery",
+  "id": "ablation-framework",
+  "name": "ablation-framework",
+  "title": "A/B/C/D ablation framework",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -18,11 +18,8 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "06-29-hpo-adapter",
-    "06-29-ablation-framework"
-  ],
-  "parent": null,
+  "children": [],
+  "parent": "06-29-feature-discovery",
   "relatedFiles": [],
   "notes": "",
   "meta": {}

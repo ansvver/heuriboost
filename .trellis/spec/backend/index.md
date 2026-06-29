@@ -22,6 +22,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [FiQA Demo & Feature-Set Contracts](./fiqa-demo-contracts.md) | FiQA build obligations, label/feature leakage rules, FEATURE_NAMES consistency | Documented 2026-06-29 |
 | [Feature Recipe Registry Contracts](./feature-registry-contracts.md) | FeatureRecipe registry load/validate contracts, ALLOWED_INPUTS, Option C shared impl, eager load | Documented 2026-06-29 |
 | [HPO Engine Contracts](./hpo-contracts.md) | HPOEngine adapter signatures, raw-label nDCG consistency, nthread=1 determinism, test-blind search + post-hoc eval, overfit finding | Documented 2026-06-29 |
+| [Ablation Framework Contracts](./ablation-contracts.md) | A/B/C/D 4-cell runner, candidate probe contract, dual val+test+gate promotion rule, unified training procedure | Documented 2026-06-29 |
 
 ---
 
