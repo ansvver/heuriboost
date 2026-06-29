@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 2
+- **Total Sessions**: 3
 - **Last Active**: 2026-06-29
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~73 | Active |
+| `journal-1.md` | ~106 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 3 | 2026-06-29 | case_sets mining + settlement loop (V1 step 2) | `ac6aefc` | `main` |
 | 2 | 2026-06-29 | Case state machine (gate/pending/retired) + cross-round ledger | `5dd09b3` | `main` |
 | 1 | 2026-06-29 | FiQA pivot: replace toy financial demo with single FiQA-2018 demo | `f371cc0` | `main` |
 <!-- @@@/auto:session-history -->
