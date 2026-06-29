@@ -29,89 +29,134 @@ HeuriBoost rerank:
 它还会把这个错误写成 regression gate，确保下一版 reranker 不能再把这段
 误导性文档放进受保护的 top-k。
 
-## 核心闭环
+## 概念
 
-HeuriBoost 是一个 CSV-first、兼容 Codex skill 形式的 RAG reranking 工具。
-它把带标签的 query-document 样本和历史检索失败案例，转成一个本地
-XGBoost/LambdaMART reranker，并输出 regression gate 和轻量 case 分析。
+HeuriBoost 是一个**自适应 XGBoost 框架**，从带标签样本和历史失败中学习。
+本仓库当前交付的是 RAG query-document reranking 的特化（Q-D reranker）；同一
+架构可推广到分类、回归等监督表格任务（见 `docs/specs/`）。
 
-V0 的闭环故意很小：
+核心理念是**失败驱动循环**：系统不只是训练一个模型——它记住哪些失败已修复、
+哪些仍开放、是哪个特征或参数改动关闭了它们。已修复的失败固化为 gate；未修复
+的失败成为下一轮的攻击目标。
 
-```text
-已有 RAG 系统
-  -> 导出 query-document-label CSV
-  -> 运行 HeuriBoost RAG skill
-  -> 训练可解释 reranker
-  -> 对比 retriever baseline
-  -> 分析已知失败案例
-  -> 把失败固化成 regression gate
-```
+核心抽象（定义见 `docs/specs/ADAPTIVE_XGBOOST_HEURISTIC_SPEC.md`）：
 
-### V1 完整循环（全视图）
+- **TaskProfile** —— 绑定任务类型（ranking/classification/regression…）与其
+  objective、指标、gate、slice、serving 行为。Q-D reranker 是其中一个 task
+  profile。
+- **LearningExample** —— 一条监督样本。ranking 下同组行共享 `group_id`
+  （`query_id`）；分类/回归下每行通常是独立实体。
+- **PredictionContextSnapshot** —— 模型评估所依据的不可变候选集/特征上下文。
+  比较模型必须在同一 snapshot 上进行。
+- **RegressionCase** —— 历史失败，以 gate 形式表达（按任务语义描述期望行为）。
+  是 gate，不是训练数据。
+- **FeatureRecipe** —— 声明式、带版本的 feature，含输入、cost tier、online
+  safety、leakage risk、expected slices。feature 住在 registry 里，不散落代码中。
+- **PromotionGate** —— 候选模型替换当前模型前必须通过的多维门槛（全局指标、
+  per-case、slice、latency、reliability）。
+- **FeatureMemory** —— 记录哪些 feature 被 promote/reject/quarantine 及原因的
+  机构记忆。
 
-上面的 V0 流程是内层的"训练+评估"循环。V1 在外层包了一个带状态、跨多轮的
-"攻击失败集"循环：每轮把 pending 失败挖掘出同模式训练样本、重训模型，转绿的
-case 由人工升级为 gate。下图只画大的分支模块，细节见后续章节。
+两条铁律绝对成立：
+
+1. **评估快照固定、split 严格隔离** —— train/validation/regression/test 之间
+   不得以会泄漏的方式共享行。
+2. **Regression case 是考题，不是训练数据** —— 用 case 训练会把它变成橡皮
+   图章，破坏"记住错误"的保证。沉淀进训练永远走"抽象/挖掘的样本"，不是 case 行。
+
+## 项目全流程
+
+HeuriBoost 分为四个概念层。V0 demo 用 Q-D reranking task profile 实例化了前
+三层；V1 增加第四层（迭代式失败攻击）；未来工作（HPO、自动特征发现、serving）
+在 `docs/specs/` 中描述，尚未实现。
 
 ```mermaid
 flowchart TD
-  CSV["FiQA demo CSV<br/>(query_doc_examples.csv)"]
-  CASES["regression_cases.yaml<br/>gate / pending / retired"]
-  LEDGER["ledger.json<br/>(锚点 + 轮次历史)"]
+  subgraph DATA["1. 数据层"]
+    direction LR
+    SRC["原始语料 + retriever<br/>(BM25 + dense + RRF)"]
+    BUILD["build_fiqa_csv.py<br/>启发式或 LLM 标签"]
+    CSV["LearningExamples CSV<br/>train / val / test"]
+    SRC --> BUILD --> CSV
+  end
 
-  BUILD["build_fiqa_csv.py<br/>(离线，启发式或 LLM 标签)"]
-  TRAIN["train_reranker.py<br/>(可选 --case-sets)"]
-  EVAL["eval_reranker.py<br/>(指标 + gate/pending 分流)"]
+  subgraph LEARN["2. 学习层"]
+    direction LR
+    FEATS["FeatureRecipe registry<br/>(V0: 硬编码 extract_features)"]
+    TRAIN["训练 XGBoost<br/>按 query_id 分组"]
+    CSV --> FEATS --> TRAIN
+  end
 
-  CSV --> TRAIN
-  CASES -->|denylist B+C| TRAIN
-  TRAIN --> EVAL
-  EVAL -->|记录轮次| LEDGER
-  LEDGER -->|B 对比锚点| EVAL
+  subgraph EVAL["3. 评估与记忆层"]
+    direction LR
+    METRICS["全局 + slice 指标<br/>对比 retriever baseline"]
+    CASES["RegressionCase 台账<br/>gate / pending / retired"]
+    GATE["PromotionGate<br/>A: per-case  B: 全局对比锚点"]
+    LEDGER["ledger.json<br/>轮次历史 + B2 锚点"]
+    TRAIN --> METRICS
+    METRICS --> GATE
+    CASES --> GATE
+    GATE --> LEDGER
+  end
 
-  EVAL -->|pending 失败| MINE["mine_case_sets.py<br/>(a+b+c，B+C 隔离)"]
-  MINE -->|case_sets/*.csv| TRAIN
+  subgraph EVOLVE["4. 演进层（V1+）"]
+    direction LR
+    MINE["挖掘同模式样本<br/>(a+b+c，B+C 隔离)"]
+    SETS["case_sets -> train"]
+    PROMOTE["手动 promote<br/>pending -> gate"]
+    LEDGER -->|pending 失败| MINE --> SETS --> FEATS
+    LEDGER -->|gate 通过| PROMOTE --> CASES
+  end
 
-  EVAL -->|gate 通过| PROMOTE["手动 promote<br/>(ledger.promote)"]
-  PROMOTE -->|pending -> gate| CASES
-
-  CASES -.考题.-> EVAL
+  LEDGER -.下一轮.-> LEARN
 ```
 
-单轮循环的伪代码（由维护者执行，无自动升级）：
+### 各层职责
+
+- **数据层** —— task profile 定义 `LearningExample` 的形态。对 Q-D reranking，
+  `build_fiqa_csv.py` 跑检索（FiQA 不自带候选）并打标签（启发式或 LLM），产出
+  提交进仓库的 CSV，含固定的 train/val/test 划分。
+- **学习层** —— feature 被声明（V0: 硬编码在 `extract_features`；未来:
+  `FeatureRecipe` registry），XGBoost 按 task profile 的 objective（`rank:ndcg`）
+  与分组训练。
+- **评估与记忆层** —— 每个模型与 retriever baseline 及 `RegressionCase` 台账
+  对比。`PromotionGate` 同时检查 per-case（A: must_include 排名、per-query 指标）
+  与全局（B: 对比锚定基线不退化）。`ledger.json` 记录每一轮。
+- **演进层** —— pending 失败被挖掘出同模式训练样本（`case_sets`，与 case 做
+  B+C 隔离），回填进 train。转绿的 case 由人工升级为 gate。这就是多轮"攻击失败
+  集"循环。
+
+### 单轮概念伪代码
 
 ```text
-# 输入：CSV (train/val/test)、regression_cases.yaml (gate|pending|retired)、
-#       ledger.json (锚点 + 历史)
-function run_round(use_case_sets):
-    train_df = load_csv("train")                       # 永不读 cases/ledger
+function run_round(task_profile, cases, ledger, use_case_sets):
+    # 层 1+2：数据 + 特征 + 训练
+    train_df = load_examples(task_profile, split="train")
     if use_case_sets:
-        for case in cases where status == "pending":
-            samples = mine_a_b_c(case, CSV)            # 语义 + 形状 + 类型
-            samples = filter_B_C(samples, case_ids)    # 隔离
-            write case_sets/<case_id>.csv
-        train_df += load_case_sets(case_sets_dir)      # 仅并入 train
-        assert_B_C_isolation(train_df, case_ids)       # 防御性复检
+        for case in cases where case.status == "pending":
+            samples = mine_same_pattern(case, corpus, task_profile)  # a+b+c
+            samples = isolate(samples, case_ids)                     # B+C
+        train_df += load_case_sets()
+        assert_isolation(train_df, case_ids)                        # 防御性
+    model = train_xgb(task_profile, train_df, valid_df)
 
-    model = train_xgb(train_df, valid_df)              # 按 query_id 分组
-
-    metrics = evaluate(model, split)                   # nDCG/MRR/recall/hard-neg
-    case_results = run_cases(model, cases)             # gate: 阻断；pending: 报告
+    # 层 3：评估 + gate
+    metrics = evaluate(model, task_profile, split)
+    case_results = run_cases(model, cases)        # gate 阻断；pending 报告
     ledger.record(round, metrics, case_results, use_case_sets)
-
     if ledger.has_anchor:
-        delta = metrics.ndcg10 - ledger.anchor.ndcg10  # B: 全局不退化
-        print(delta, regressed=delta < -eps)           # 仅报告，不阻断
+        report_B(metrics 对比 ledger.anchor)      # 报告，不自动阻断
 
-    for case in cases where status == "pending" and case_results[case].passed:
-        print("升级候选:", case.id)                    # 手动 promote，不自动
+    # 层 4：演进
+    for case in pending_cases_that_passed(case_results):
+        suggest_promote(case)                     # 手动，永不自动
 
-    if any gate case failed:
-        exit 1                                         # demo 绿灯要求所有 gate 通过
+    # demo 绿灯当且仅当所有 gate case 通过
+    return exit_code == 0 iff no gate case failed
 ```
 
-两条铁律在每一轮都成立：(1) regression/gate 的 case 行永不进训练——只有挖掘出来、
-经 B+C 隔离的样本能进；(2) pending -> gate 的升级永远是手动的。
+两条铁律在每一层、每一轮都成立：(1) regression/gate 的 case 行永不进训练——
+只有挖掘出来、经 B+C 隔离的样本能进；(2) pending -> gate 的升级永远是手动的。
 
 ## V0 能做什么
 

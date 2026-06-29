@@ -31,93 +31,147 @@ HeuriBoost rerank:
 It also writes the mistake down as a regression gate, so the next reranker must
 keep the misleading passage out of the protected top-k.
 
-## The Loop
+## Concept
 
-HeuriBoost is a CSV-first, Codex-compatible agent skill for failure-driven RAG
-reranking. It turns labeled query-document examples and past retrieval failures
-into a local XGBoost/LambdaMART reranker with regression gates and lightweight
-case analysis.
+HeuriBoost is an **adaptive XGBoost framework** that learns from labeled
+examples and historical failures. The repository ships a RAG query-document
+reranking specialization (Q-D reranker); the same architecture generalizes to
+classification, regression, and other supervised tabular tasks (see
+`docs/specs/`).
 
-V0 deliberately keeps the loop small:
+The core idea is a **failure-driven loop**: the system does not just train a
+model — it remembers which failures it has fixed, which are still open, and
+which features or parameter changes closed them. A fixed failure becomes a
+durable gate; an open failure becomes a target for the next round.
 
-```text
-existing RAG system
-  -> export query-document-label CSV
-  -> run the HeuriBoost RAG skill
-  -> train an explainable reranker
-  -> compare against retriever baselines
-  -> analyze known failures
-  -> preserve failures as regression gates
-```
+The central abstractions (defined in `docs/specs/ADAPTIVE_XGBOOST_HEURISTIC_SPEC.md`):
 
-### Full V1 loop (big-picture)
+- **TaskProfile** — binds a task type (ranking, classification, regression, …)
+  to its objective, metrics, gates, slices, and serving behavior. The Q-D
+  reranker is one task profile.
+- **LearningExample** — one supervised row. For ranking, rows share a
+  `group_id` (`query_id`); for classification/regression, rows are individual
+  entities.
+- **PredictionContextSnapshot** — the immutable candidate set / feature context
+  a model is evaluated against. Comparing models requires the same snapshot.
+- **RegressionCase** — a historical failure expressed as a gate (expected
+  behavior in task-specific terms). A gate, never training material.
+- **FeatureRecipe** — a declared, versioned feature with inputs, cost tier,
+  online-safety, leakage risk, and expected slices. Features live in a
+  registry, not scattered code.
+- **PromotionGate** — the multi-dimensional bar a candidate model must clear
+  (global metric, per-case, slice, latency, reliability) before replacing the
+  current one.
+- **FeatureMemory** — the institutional memory of which features were
+  promoted / rejected / quarantined, and why.
 
-The V0 flow above is the inner training+eval cycle. V1 wraps it in a
-multi-round, stateful loop that attacks the failure set: each round, pending
-failures are mined for same-pattern training samples, the model is retrained,
-and cases that turn green are manually promoted to gates. The diagram shows
-only the major branches; see the sections below for mechanics.
+Two invariants are absolute:
+
+1. **Evaluation snapshots are fixed and splits are hard-isolated** — train,
+   validation, regression, and test never share rows in a way that leaks.
+2. **Regression cases are exam questions, never training rows** — training on a
+   case turns its gate into a rubber stamp and destroys the "remembers its
+   mistakes" guarantee. Settlement into training is always via abstracted or
+   mined samples, never the case rows themselves.
+
+## Project Flow
+
+HeuriBoost runs as four conceptual layers. The V0 demo instantiates the first
+three with a Q-D reranking task profile; V1 adds the fourth (iterative
+failure-attack); future work (HPO, automatic feature discovery, serving) is
+described in `docs/specs/` and not yet implemented.
 
 ```mermaid
 flowchart TD
-  CSV["FiQA demo CSV<br/>(query_doc_examples.csv)"]
-  CASES["regression_cases.yaml<br/>gate / pending / retired"]
-  LEDGER["ledger.json<br/>(anchor + round history)"]
+  subgraph DATA["1. Data layer"]
+    direction LR
+    SRC["raw corpus + retriever<br/>(BM25 + dense + RRF)"]
+    BUILD["build_fiqa_csv.py<br/>heuristic or LLM labels"]
+    CSV["LearningExamples CSV<br/>train / val / test"]
+    SRC --> BUILD --> CSV
+  end
 
-  BUILD["build_fiqa_csv.py<br/>(offline, heuristic or LLM labels)"]
-  TRAIN["train_reranker.py<br/>(+ optional --case-sets)"]
-  EVAL["eval_reranker.py<br/>(metrics + gate/pending split)"]
+  subgraph LEARN["2. Learning layer"]
+    direction LR
+    FEATS["FeatureRecipe registry<br/>(V0: hardcoded extract_features)"]
+    TRAIN["train XGBoost<br/>grouped by query_id"]
+    CSV --> FEATS --> TRAIN
+  end
 
-  CSV --> TRAIN
-  CASES -->|denylist B+C| TRAIN
-  TRAIN --> EVAL
-  EVAL -->|record round| LEDGER
-  LEDGER -->|B vs anchor| EVAL
+  subgraph EVAL["3. Evaluation & memory layer"]
+    direction LR
+    METRICS["global + slice metrics<br/>vs retriever baselines"]
+    CASES["RegressionCase ledger<br/>gate / pending / retired"]
+    GATE["PromotionGate<br/>A: per-case  B: global vs anchor"]
+    LEDGER["ledger.json<br/>round history + B2 anchor"]
+    TRAIN --> METRICS
+    METRICS --> GATE
+    CASES --> GATE
+    GATE --> LEDGER
+  end
 
-  EVAL -->|pending fails| MINE["mine_case_sets.py<br/>(a+b+c, B+C isolated)"]
-  MINE -->|case_sets/*.csv| TRAIN
+  subgraph EVOLVE["4. Evolution layer (V1+)"]
+    direction LR
+    MINE["mine same-pattern samples<br/>(a+b+c, B+C isolated)"]
+    SETS["case_sets -> train"]
+    PROMOTE["manual promote<br/>pending -> gate"]
+    LEDGER -->|pending fails| MINE --> SETS --> FEATS
+    LEDGER -->|gate passes| PROMOTE --> CASES
+  end
 
-  EVAL -->|gate passes| PROMOTE["manual promote<br/>(ledger.promote)"]
-  PROMOTE -->|pending -> gate| CASES
-
-  CASES -.attacked exam. -> EVAL
+  LEDGER -.next round.-> LEARN
 ```
 
-Pseudocode for one round of the loop (maintainer-run; no auto-promotion):
+### What each layer does
+
+- **Data layer** — a task profile defines what a `LearningExample` looks like.
+  For Q-D reranking, `build_fiqa_csv.py` runs retrieval (FiQA ships no
+  candidates) and assigns labels (heuristic or LLM-judged), producing the
+  committed CSV with fixed train/val/test splits.
+- **Learning layer** — features are declared (V0: hardcoded in
+  `extract_features`; future: a `FeatureRecipe` registry), and XGBoost is
+  trained with the task profile's objective (`rank:ndcg`) and grouping.
+- **Evaluation & memory layer** — each model is scored against retriever
+  baselines and against the `RegressionCase` ledger. The `PromotionGate` checks
+  both per-case (A: must_include rank, per-query metric) and global (B:
+  no-regression vs the anchored baseline). `ledger.json` records every round.
+- **Evolution layer** — pending failures are mined for same-pattern training
+  samples (`case_sets`, B+C isolated from cases), folded back into train. Cases
+  that turn green are manually promoted to gates. This is the multi-round
+  "attack the failure set" loop.
+
+### One round, conceptually
 
 ```text
-# inputs: CSV (train/val/test), regression_cases.yaml (gate|pending|retired),
-#         ledger.json (anchor + history)
-function run_round(use_case_sets):
-    train_df = load_csv("train")                       # never cases/ledger
+function run_round(task_profile, cases, ledger, use_case_sets):
+    # Layer 1+2: data + features + train
+    train_df = load_examples(task_profile, split="train")
     if use_case_sets:
-        for case in cases where status == "pending":
-            samples = mine_a_b_c(case, CSV)            # semantic + shape + type
-            samples = filter_B_C(samples, case_ids)    # isolation
-            write case_sets/<case_id>.csv
-        train_df += load_case_sets(case_sets_dir)      # train-only merge
-        assert_B_C_isolation(train_df, case_ids)       # defensive re-check
+        for case in cases where case.status == "pending":
+            samples = mine_same_pattern(case, corpus, task_profile)  # a+b+c
+            samples = isolate(samples, case_ids)                     # B+C
+        train_df += load_case_sets()
+        assert_isolation(train_df, case_ids)                        # defensive
+    model = train_xgb(task_profile, train_df, valid_df)
 
-    model = train_xgb(train_df, valid_df)              # grouped by query_id
-
-    metrics = evaluate(model, split)                   # nDCG/MRR/recall/hard-neg
-    case_results = run_cases(model, cases)             # gate: block; pending: report
+    # Layer 3: evaluate + gate
+    metrics = evaluate(model, task_profile, split)
+    case_results = run_cases(model, cases)        # gate blocks; pending reports
     ledger.record(round, metrics, case_results, use_case_sets)
-
     if ledger.has_anchor:
-        delta = metrics.ndcg10 - ledger.anchor.ndcg10  # B: global no-regression
-        print(delta, regressed=delta < -eps)           # reported, not blocking
+        report_B(metrics vs ledger.anchor)        # reported, not auto-blocking
 
-    for case in cases where status == "pending" and case_results[case].passed:
-        print("promotion candidate:", case.id)         # manual promote, not auto
+    # Layer 4: evolve
+    for case in pending_cases_that_passed(case_results):
+        suggest_promote(case)                     # MANUAL, never auto
 
-    if any gate case failed:
-        exit 1                                         # demo green requires all gates pass
+    # demo ships green only if every gate case passes
+    return exit_code == 0 iff no gate case failed
 ```
 
-Two hard invariants hold across every round: (1) regression/gate case ROWS
-never enter training — only mined, B+C-isolated samples do; (2) promotion
-pending -> gate is always manual.
+Two invariants hold across every round and every layer: (1) regression/gate
+case ROWS never enter training — only mined, B+C-isolated samples do; (2)
+promotion pending -> gate is always manual.
 
 ## What V0 Does
 
