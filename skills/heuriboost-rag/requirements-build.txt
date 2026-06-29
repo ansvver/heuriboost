@@ -2,3 +2,4 @@ rank-bm25
 sentence-transformers
 datasets
 openai
+optuna

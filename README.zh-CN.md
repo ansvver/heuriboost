@@ -129,6 +129,7 @@ skill 模式见[参考手册](./docs/REFERENCE.zh-CN.md)。
 - [x] FeatureRecipe registry / recipe DSL（声明式元数据 + load-time 泄漏/online-safe 校验）
 - [x] 指标：nDCG、MRR、Recall、hard-negative exposure，对比基线
 - [x] 报告：ranking diff、feature importance、确定性失败分析
+- [x] HPO adapter（Optuna 后端，确定性，case/test-blind 搜索 + post-hoc test 评估）
 - [x] Regression case 作为 gate，含三态状态机（gate / pending / retired）
 - [x] per-case 检查（`require_rank`、`min_ndcg10`）+ 整体质量检查
 - [x] 跨轮 ledger，含手动锚定的基线
@@ -140,7 +141,6 @@ skill 模式见[参考手册](./docs/REFERENCE.zh-CN.md)。
 
 - [ ] 提交 demo 的 LLM 模式（benchmark 级）标签
 - [ ] 自动特征发现、消融与晋级（`FeatureMemory`）
-- [ ] 接外部后端的 HPO adapter
 - [ ] 其他 task profile（分类 / 回归 / …）
 - [ ] 线上 serving、shadow/backtest、A/B 上线
 - [ ] 稳定 Python package / public API（`pyproject.toml`）

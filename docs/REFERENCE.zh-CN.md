@@ -4,6 +4,7 @@ HeuriBoost Q-D reranker 的操作参考。[README](../README.zh-CN.md) 讲故事
 和 demo 效果；本文承接维护者日常需要的契约与命令细节。
 
 - [特征 registry](#特征-registry)
+- [HPO](#hpo)
 - [CSV 契约](#csv-契约)
 - [标签含义](#标签含义)
 - [Regression cases](#regression-cases)
@@ -47,6 +48,36 @@ load-time 检查。
 
 训练出的模型 `reranker_metadata.json` 记录 `feature_set_name`、
 `feature_set_version` 与 per-feature 的 `feature_versions` 字典。
+
+## HPO
+
+`scripts/run_hpo.py` 通过 `HPOEngine` adapter（`scripts/hpo/`，Optuna 后端）
+搜索 XGBoost 参数。属于**构建/实验**依赖（`optuna` 在
+`requirements-build.txt`），非运行时。
+
+```bash
+python -m pip install -r skills/heuriboost-rag/requirements-build.txt
+python3 skills/heuriboost-rag/scripts/run_hpo.py examples/fiqa/query_doc_examples.csv \
+  --output-dir examples/fiqa/output --n-trials 20 --seed 42 [--timeout-sec 120]
+```
+
+输出写入 `examples/fiqa/output/hpo/`（被 git 忽略）：`hpo_report.md`
+（val + test nDCG@10 + val−test gap + trial 表）、`best_params.json`
+（params + `best_iteration` + scores + feature_set 归属）、`trials.json`
+（完整 trial 历史）。
+
+关键契约（见 `.trellis/spec/backend/hpo-contracts.md`）：
+
+- **防泄漏**：HPO 搜索只见 train+valid 快照（签名上 case-blind + test-blind）。
+  post-hoc test 评估是单次前向，非优化。
+- **确定性**：`nthread=1` + `TPESampler(seed=...)` → 同种子运行产生字节级
+  一致的 `trials.json`。
+- **可复现**：用 `best_params` + `num_boost_round = best_iteration + 1` 重训
+  可精确复现 HPO-best 模型。
+- **nDCG 尺度**：HPO 分数用与 shipped baseline（0.853）相同的原始 label
+  `ndcg_at_k`，直接可比。
+- **过拟合说明**：在 40 query 的 FiQA validation 上，HPO 会过拟合（val 比 test
+  高约 0.08，test 可能低于 0.83 基线）。报告通过 val−test gap 诚实暴露这一点。
 
 ## CSV 契约
 

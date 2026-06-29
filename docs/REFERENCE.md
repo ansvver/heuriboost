@@ -5,6 +5,7 @@ covers the story, concepts, and demo results; this file holds the contracts and
 command details a maintainer needs day to day.
 
 - [Feature registry](#feature-registry)
+- [HPO](#hpo)
 - [CSV contract](#csv-contract)
 - [Label scale](#label-scale)
 - [Regression cases](#regression-cases)
@@ -48,6 +49,38 @@ hard-fails (SystemExit) on a missing impl, a disallowed input, an
 
 The trained model's `reranker_metadata.json` records `feature_set_name`,
 `feature_set_version`, and a per-feature `feature_versions` dict.
+
+## HPO
+
+`scripts/run_hpo.py` searches XGBoost params via the `HPOEngine` adapter
+(`scripts/hpo/`, Optuna backend). It is a **build/experiment** dependency
+(`optuna` in `requirements-build.txt`), not a runtime one.
+
+```bash
+python -m pip install -r skills/heuriboost-rag/requirements-build.txt
+python3 skills/heuriboost-rag/scripts/run_hpo.py examples/fiqa/query_doc_examples.csv \
+  --output-dir examples/fiqa/output --n-trials 20 --seed 42 [--timeout-sec 120]
+```
+
+Outputs land in `examples/fiqa/output/hpo/` (gitignored): `hpo_report.md`
+(val + test nDCG@10 + val−test gap + trial table), `best_params.json`
+(params + `best_iteration` + scores + feature_set attribution), `trials.json`
+(full trial history).
+
+Key contracts (see `.trellis/spec/backend/hpo-contracts.md`):
+
+- **Anti-leak**: the HPO SEARCH sees only train+valid snapshots (case-blind +
+  test-blind by signature). Post-hoc test eval is a single forward pass, not
+  optimization.
+- **Determinism**: `nthread=1` + `TPESampler(seed=...)` → same-seed runs produce
+  byte-identical `trials.json`.
+- **Reproducibility**: retrain with `best_params` + `num_boost_round =
+  best_iteration + 1` to reproduce the HPO-best model exactly.
+- **nDCG scale**: HPO scores use the SAME raw-label `ndcg_at_k` as the shipped
+  baseline (0.853), so they are directly comparable.
+- **Overfit caveat**: on the 40-query FiQA validation, HPO overfits (val > test
+  by ~0.08, test may fall below the 0.83 baseline). The report surfaces this
+  honestly via the val−test gap.
 
 ## CSV contract
 

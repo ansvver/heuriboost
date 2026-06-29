@@ -141,6 +141,7 @@ Done:
 - [x] FeatureRecipe registry / recipe DSL (declared metadata + load-time leakage/online-safe validation)
 - [x] Metrics: nDCG, MRR, recall, hard-negative exposure vs baselines
 - [x] Reports: ranking diff, feature importance, deterministic failure analysis
+- [x] HPO adapter (Optuna backend, deterministic, case/test-blind search + post-hoc test eval)
 - [x] Regression cases as gates, with a three-state machine (gate / pending / retired)
 - [x] Per-case checks (`require_rank`, `min_ndcg10`) + overall-quality check
 - [x] Cross-round ledger with a manually-anchored baseline
@@ -152,7 +153,6 @@ Not yet:
 
 - [ ] LLM-mode (benchmark-grade) labels for the committed demo
 - [ ] Automatic feature discovery, ablation, and promotion (`FeatureMemory`)
-- [ ] HPO adapter to an external backend
 - [ ] Other task profiles (classification / regression / …)
 - [ ] Online serving, shadow/backtest, A/B rollout
 - [ ] Stable Python package / public API (`pyproject.toml`)
