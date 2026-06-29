@@ -50,6 +50,75 @@ existing RAG system
   -> preserve failures as regression gates
 ```
 
+### Full V1 loop (big-picture)
+
+The V0 flow above is the inner training+eval cycle. V1 wraps it in a
+multi-round, stateful loop that attacks the failure set: each round, pending
+failures are mined for same-pattern training samples, the model is retrained,
+and cases that turn green are manually promoted to gates. The diagram shows
+only the major branches; see the sections below for mechanics.
+
+```mermaid
+flowchart TD
+  CSV["FiQA demo CSV<br/>(query_doc_examples.csv)"]
+  CASES["regression_cases.yaml<br/>gate / pending / retired"]
+  LEDGER["ledger.json<br/>(anchor + round history)"]
+
+  BUILD["build_fiqa_csv.py<br/>(offline, heuristic or LLM labels)"]
+  TRAIN["train_reranker.py<br/>(+ optional --case-sets)"]
+  EVAL["eval_reranker.py<br/>(metrics + gate/pending split)"]
+
+  CSV --> TRAIN
+  CASES -->|denylist B+C| TRAIN
+  TRAIN --> EVAL
+  EVAL -->|record round| LEDGER
+  LEDGER -->|B vs anchor| EVAL
+
+  EVAL -->|pending fails| MINE["mine_case_sets.py<br/>(a+b+c, B+C isolated)"]
+  MINE -->|case_sets/*.csv| TRAIN
+
+  EVAL -->|gate passes| PROMOTE["manual promote<br/>(ledger.promote)"]
+  PROMOTE -->|pending -> gate| CASES
+
+  CASES -.attacked exam. -> EVAL
+```
+
+Pseudocode for one round of the loop (maintainer-run; no auto-promotion):
+
+```text
+# inputs: CSV (train/val/test), regression_cases.yaml (gate|pending|retired),
+#         ledger.json (anchor + history)
+function run_round(use_case_sets):
+    train_df = load_csv("train")                       # never cases/ledger
+    if use_case_sets:
+        for case in cases where status == "pending":
+            samples = mine_a_b_c(case, CSV)            # semantic + shape + type
+            samples = filter_B_C(samples, case_ids)    # isolation
+            write case_sets/<case_id>.csv
+        train_df += load_case_sets(case_sets_dir)      # train-only merge
+        assert_B_C_isolation(train_df, case_ids)       # defensive re-check
+
+    model = train_xgb(train_df, valid_df)              # grouped by query_id
+
+    metrics = evaluate(model, split)                   # nDCG/MRR/recall/hard-neg
+    case_results = run_cases(model, cases)             # gate: block; pending: report
+    ledger.record(round, metrics, case_results, use_case_sets)
+
+    if ledger.has_anchor:
+        delta = metrics.ndcg10 - ledger.anchor.ndcg10  # B: global no-regression
+        print(delta, regressed=delta < -eps)           # reported, not blocking
+
+    for case in cases where status == "pending" and case_results[case].passed:
+        print("promotion candidate:", case.id)         # manual promote, not auto
+
+    if any gate case failed:
+        exit 1                                         # demo green requires all gates pass
+```
+
+Two hard invariants hold across every round: (1) regression/gate case ROWS
+never enter training — only mined, B+C-isolated samples do; (2) promotion
+pending -> gate is always manual.
+
 ## What V0 Does
 
 - Validates a standard query-document CSV contract.

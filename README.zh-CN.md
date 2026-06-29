@@ -47,6 +47,72 @@ V0 的闭环故意很小：
   -> 把失败固化成 regression gate
 ```
 
+### V1 完整循环（全视图）
+
+上面的 V0 流程是内层的"训练+评估"循环。V1 在外层包了一个带状态、跨多轮的
+"攻击失败集"循环：每轮把 pending 失败挖掘出同模式训练样本、重训模型，转绿的
+case 由人工升级为 gate。下图只画大的分支模块，细节见后续章节。
+
+```mermaid
+flowchart TD
+  CSV["FiQA demo CSV<br/>(query_doc_examples.csv)"]
+  CASES["regression_cases.yaml<br/>gate / pending / retired"]
+  LEDGER["ledger.json<br/>(锚点 + 轮次历史)"]
+
+  BUILD["build_fiqa_csv.py<br/>(离线，启发式或 LLM 标签)"]
+  TRAIN["train_reranker.py<br/>(可选 --case-sets)"]
+  EVAL["eval_reranker.py<br/>(指标 + gate/pending 分流)"]
+
+  CSV --> TRAIN
+  CASES -->|denylist B+C| TRAIN
+  TRAIN --> EVAL
+  EVAL -->|记录轮次| LEDGER
+  LEDGER -->|B 对比锚点| EVAL
+
+  EVAL -->|pending 失败| MINE["mine_case_sets.py<br/>(a+b+c，B+C 隔离)"]
+  MINE -->|case_sets/*.csv| TRAIN
+
+  EVAL -->|gate 通过| PROMOTE["手动 promote<br/>(ledger.promote)"]
+  PROMOTE -->|pending -> gate| CASES
+
+  CASES -.考题.-> EVAL
+```
+
+单轮循环的伪代码（由维护者执行，无自动升级）：
+
+```text
+# 输入：CSV (train/val/test)、regression_cases.yaml (gate|pending|retired)、
+#       ledger.json (锚点 + 历史)
+function run_round(use_case_sets):
+    train_df = load_csv("train")                       # 永不读 cases/ledger
+    if use_case_sets:
+        for case in cases where status == "pending":
+            samples = mine_a_b_c(case, CSV)            # 语义 + 形状 + 类型
+            samples = filter_B_C(samples, case_ids)    # 隔离
+            write case_sets/<case_id>.csv
+        train_df += load_case_sets(case_sets_dir)      # 仅并入 train
+        assert_B_C_isolation(train_df, case_ids)       # 防御性复检
+
+    model = train_xgb(train_df, valid_df)              # 按 query_id 分组
+
+    metrics = evaluate(model, split)                   # nDCG/MRR/recall/hard-neg
+    case_results = run_cases(model, cases)             # gate: 阻断；pending: 报告
+    ledger.record(round, metrics, case_results, use_case_sets)
+
+    if ledger.has_anchor:
+        delta = metrics.ndcg10 - ledger.anchor.ndcg10  # B: 全局不退化
+        print(delta, regressed=delta < -eps)           # 仅报告，不阻断
+
+    for case in cases where status == "pending" and case_results[case].passed:
+        print("升级候选:", case.id)                    # 手动 promote，不自动
+
+    if any gate case failed:
+        exit 1                                         # demo 绿灯要求所有 gate 通过
+```
+
+两条铁律在每一轮都成立：(1) regression/gate 的 case 行永不进训练——只有挖掘出来、
+经 B+C 隔离的样本能进；(2) pending -> gate 的升级永远是手动的。
+
 ## V0 能做什么
 
 - 校验标准 query-document CSV 契约。
