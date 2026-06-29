@@ -283,4 +283,11 @@ demo 使用了 BEIR/FiQA-2018（金融问答）的真实切片：一段金融主
 能支撑答案的文档排上来，并把这段误导性的 hard negative 压下去。提交进仓库的
 CSV 是离线生成的（见“重新生成 demo 数据集”和 `examples/fiqa/DATA_CARD.md`）。
 
+在该 demo（230 条 query，150/40/40 划分）上，reranker 在冷 test holdout 上
+依然泛化良好：nDCG@10 0.83，对比 dense 0.35 / sparse 0.25 / RRF 0.32；top-3
+hard negative 暴露从 dense 的 2.15 降到 0.48。validation 与 test 接近
+（nDCG@10 0.85 vs 0.83），说明提升不是单纯记忆。这些数字基于启发式标签
+（qrel 正例 + 基于 dense 排名的 hard negative），用于演示循环而非作为
+benchmark；需要 benchmark 级标签请用 `--label-mode llm`。
+
 长文设计规格位于 `docs/specs/`。

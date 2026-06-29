@@ -292,4 +292,12 @@ learns to lift the supporting passage and push the misleading hard negative
 down. The committed CSV is generated offline (see "Regenerating the demo
 dataset" and `examples/fiqa/DATA_CARD.md`).
 
+On this demo (230 queries, 150/40/40 split), the reranker generalizes to the
+cold test holdout: nDCG@10 0.83 vs dense 0.35 / sparse 0.25 / RRF 0.32, with
+top-3 hard-negative exposure dropping from 2.15 (dense) to 0.48. Validation and
+test track closely (nDCG@10 0.85 vs 0.83), so the gain is not just memorization.
+These numbers come from heuristic labels (qrel positives plus dense-rank-based
+hard negatives), so they illustrate the loop rather than serve as a benchmark;
+use `--label-mode llm` for benchmark-grade labels.
+
 Long-form design specs live in `docs/specs/`.
