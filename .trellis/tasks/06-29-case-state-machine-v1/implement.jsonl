@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/06-29-case-state-machine-v1/prd.md", "reason": "Requirements + acceptance criteria for the case state machine (R1-R7), committed-ledger decision."}
+{"file": ".trellis/tasks/06-29-case-state-machine-v1/design.md", "reason": "Concrete design: plan Y, schemas, ledger JSON shape, B2 anchor lifecycle, graceful no-anchor behavior, FiQA migration."}
+{"file": ".trellis/spec/backend/fiqa-demo-contracts.md", "reason": "Existing executable contracts: anti-leak (cases never train), FEATURE_NAMES consistency — must not be violated."}
+{"file": "skills/heuriboost-rag/scripts/eval_reranker.py", "reason": "The single-round evaluator to lightly change (run_regression_cases + main exit logic + report section)."}
+{"file": "skills/heuriboost-rag/scripts/common.py", "reason": "Metric helpers (ndcg_at_k, ranking) reused for per-case A checks; FEATURE_NAMES contract."}
+{"file": "examples/fiqa/regression_cases.yaml", "reason": "Current 2-gate file to migrate to three-state schema (2 gate + 4 pending)."}

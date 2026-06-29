@@ -77,3 +77,48 @@ support judgments, user clicks/actions after prediction, human labels.
 
 **Why**: Online safety / no leakage. A feature unavailable at prediction time
 inflates offline metrics and fails in production.
+
+---
+
+## Contract: regression case state machine (gate / pending / retired)
+
+**What** (added 2026-06-29, V1 step 1): each case in `regression_cases.yaml`
+carries `status`:
+- `gate` — attacked & frozen. Failure MUST block: `eval_reranker.py` exits
+  non-zero.
+- `pending` — a known gap to attack. Evaluated and REPORTED, but failure must
+  NOT change the exit code (exit 0 if no gate failed).
+- `retired` — invalidated; skipped entirely, kept for history.
+- Absent `status` defaults to `gate` (back-compat).
+
+**"Attacked / pass"** = must_include within top_k AND (if `require_rank` set)
+must_include rank <= require_rank AND no must_not_include in top_k AND (if
+`min_ndcg10` set) per-query nDCG@10 >= min_ndcg10.
+
+**Why**: only `gate` cases represent achieved, frozen fixes; `pending` cases are
+the roadmap of gaps. Auto-blocking on pending would make the demo red by design;
+silently passing them would hide the roadmap. Promotion pending->gate is MANUAL.
+
+## Contract: the ledger is never a training input (anti-leak extension)
+
+**What**: `examples/fiqa/ledger.json` (committed, NOT gitignored, NOT
+auto-committed by scripts) records per-round snapshots + the B2 anchor. Like
+regression cases, it is evaluation/tracking state only.
+
+**Forbidden**: `train_reranker.py` must never read `regression_cases.yaml` or
+`ledger.json`. Cases and ledger are exam/score-keeping artifacts; training on
+them turns gates into rubber stamps.
+
+**Why**: preserves the core "remembers its mistakes" value — gates must stay
+exam questions the model has not trained on.
+
+## Contract: B2 anchor must degrade gracefully when absent
+
+**What**: the global-no-regression check (B) compares a round's global nDCG@10 /
+MRR@10 against a frozen anchor snapshot. When no anchor exists yet, the tooling
+reports "no anchor yet" and offers `set-anchor`; it must NOT crash and must NOT
+report a false regression. A corrupt ledger must fail with a clear message, not
+silently.
+
+**Why**: a fresh state (or first run) has no baseline; treating "no baseline" as
+a regression would block falsely. B is reported, not exit-blocking, in V1.

@@ -48,6 +48,18 @@ Evaluate and run regression gates:
 python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
 ```
 
+Set the cross-round ledger anchor (manual, after confirmed gains):
+
+```bash
+python skills/heuriboost-rag/scripts/regression_ledger.py set-anchor --ledger examples/fiqa/ledger.json
+```
+
+Print a ledger progress summary:
+
+```bash
+python skills/heuriboost-rag/scripts/regression_ledger.py summary --ledger examples/fiqa/ledger.json
+```
+
 Syntax-check scripts:
 
 ```bash
@@ -176,11 +188,12 @@ skills/heuriboost-rag/
   SKILL.md
   requirements.txt
   requirements-build.txt
-  scripts/{common.py,inspect_rag_repo.py,validate_dataset.py,train_reranker.py,eval_reranker.py,build_fiqa_csv.py}
+  scripts/{common.py,inspect_rag_repo.py,validate_dataset.py,train_reranker.py,eval_reranker.py,regression_ledger.py,build_fiqa_csv.py}
   templates/{query_doc_examples.csv,regression_cases.yaml,feature_recipes.yaml,promotion_gate.yaml}
 examples/fiqa/
   query_doc_examples.csv
   regression_cases.yaml
+  ledger.json
   DATA_CARD.md
 docs/specs/
   ADAPTIVE_XGBOOST_HEURISTIC_SPEC.md
@@ -188,6 +201,8 @@ docs/specs/
 ```
 
 Generated demo output is written under `examples/fiqa/output/` and ignored by git.
+The cross-round ledger (`examples/fiqa/ledger.json`) is committed to git (NOT
+ignored) — it is version-controlled round history, not a generated artifact.
 
 ## Future Layouts From Specs
 
@@ -228,6 +243,21 @@ qd_reranker/
 - V0 uses real `xgboost`; missing dependency errors must be clear and actionable.
 - V0 keeps runnable scripts under `skills/heuriboost-rag/scripts/` and does not add formal package scaffolding.
 - V0 includes deterministic failure analysis lite, not automatic feature discovery.
+
+## V1 Case State Machine (implemented 2026-06-29)
+
+- Three-state case schema: `gate` (blocks on failure), `pending` (reported
+  only, non-blocking), `retired` (skipped). Missing `status` defaults to `gate`.
+- Per-case local metric checks (A): `require_rank` (first must_include must
+  reach rank <= N), `min_ndcg10` (per-query nDCG@10 floor).
+- Cross-round ledger in committed `examples/fiqa/ledger.json` (NOT gitignored,
+  NOT auto-committed). `regression_ledger.py` owns round snapshots, the B2
+  anchor, the B-vs-anchor comparison, and manual `set-anchor`/`promote` helpers.
+- B-vs-anchor is REPORTED (not blocking) in V1, consistent with manual
+  promotion philosophy.
+- Promotion pending -> gate is always manual (interactive confirmation).
+- Anti-leak invariant preserved: `train_reranker.py` never loads regression
+  cases or the ledger.
 
 ## Future Decisions Before Expanding Beyond V0
 

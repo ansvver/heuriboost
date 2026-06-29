@@ -1,29 +1,29 @@
 # HeuriBoost FiQA regression cases.
 #
-# These are GATES, not training rows. Each case was mined from an observed
-# baseline failure on the FiQA validation split (the dense retriever placed a
-# semantic hard negative at rank 1 and pushed the supporting passage down) and
-# then HAND-CONFIRMED by reading the query and passage texts. Candidates whose
-# heuristic -1 label looked like an unlabeled-relevant passage (a false hard
-# negative) were rejected and are not included.
+# These are EXAM QUESTIONS, not training rows. Each case was mined from an
+# observed baseline failure on the FiQA validation split (the dense retriever
+# placed a semantic hard negative at rank 1 and pushed the supporting passage
+# down) and then HAND-CONFIRMED by reading the query and passage texts.
+# Candidates whose heuristic -1 label looked like an unlabeled-relevant passage
+# (a false hard negative) were rejected and are not included.
 #
-# A gate is a FIXED failure: the current reranker already keeps the supporting
-# doc in the protected top_k and the hard negative out. A case fails if the
-# required doc drops out of top_k, or the forbidden doc enters top_k.
+# Case states:
+#   gate    — attacked & frozen. Failure blocks (exit non-zero).
+#   pending — a known gap to attack. Evaluated and reported, but failure does
+#             NOT block (exit 0). These ARE the cases to attack next.
+#   retired — invalidated (corpus/label drift). Not evaluated; kept for history.
 #
-# Known boundary (NOT gates): the following hand-confirmed hard-negative cases
-# are still too hard for the current reranker — it lifts the supporting passage
-# but not yet into top-3, so they are recorded here for future work rather than
-# enforced as blocking gates:
-#   - 10117 "Solicitation of a Security"        (req 508922 not yet in top-3)
-#   - 1     "business expenses, no income"      (req 14255; neg 363495 still in top-3)
-#   - 1100  "combined contribution limits"      (req 441632; neg 15841 still in top-3)
-#   - 10653 "aggressive in Roth/401k/taxable"   (neg 492971 still in top-3)
-# Promote these to gates once the reranker can satisfy them.
+# A case "passes" iff all must_include are within top_k (and the first
+# must_include reaches rank <= require_rank if set) AND no must_not_include is
+# within top_k AND min_ndcg10 is satisfied if set.
 
 cases:
+  # ---- Gates: the reranker already satisfies these ----
+
   - case_id: fiqa_financial_security_definition
     query_id: 10087
+    status: gate
+    require_rank: 3
     query: "What is a financial security?"
     must_include_doc_ids:
       - "375368"        # discusses what a security is / definitional
@@ -35,6 +35,8 @@ cases:
 
   - case_id: fiqa_non_homeowners_house_insurance
     query_id: 1084
+    status: gate
+    require_rank: 3
     query: "Insurance for a house which is not homeowners insurance?"
     must_include_doc_ids:
       - "518949"        # vacant home insurance — the actual non-homeowners coverage asked about
@@ -43,3 +45,53 @@ cases:
     top_k: 3
     failure_type: semantic_hard_negative
     notes: "Hard negative talks about required insurance generally; supporting passage names 'vacant home insurance'. Dense ranked the generality #1; reranker keeps the specific coverage in top-3."
+
+  # ---- Pending: known gaps to attack (non-blocking) ----
+
+  - case_id: fiqa_solicitation_of_security
+    query_id: 10117
+    status: pending
+    query: "Solicitation of a Security"
+    must_include_doc_ids:
+      - "508922"
+    must_not_include_doc_ids:
+      - "557115"
+    top_k: 3
+    failure_type: semantic_hard_negative
+    notes: "Supporting passage (508922) is not yet lifted into top-3 by the current reranker. Tracked as a pending gap to attack."
+
+  - case_id: fiqa_business_expenses_no_income
+    query_id: 1
+    status: pending
+    query: "Claiming business expenses for a business with no income"
+    must_include_doc_ids:
+      - "14255"
+    must_not_include_doc_ids:
+      - "363495"
+    top_k: 3
+    failure_type: semantic_hard_negative
+    notes: "Hard negative (363495) still enters top-3; supporting passage (14255) not yet reliably in top-3. Tracked as a pending gap to attack."
+
+  - case_id: fiqa_combined_contribution_limits
+    query_id: 1100
+    status: pending
+    query: "Combined annual contribution limits for individuals [duplicate]"
+    must_include_doc_ids:
+      - "441632"
+    must_not_include_doc_ids:
+      - "15841"
+    top_k: 3
+    failure_type: semantic_hard_negative
+    notes: "Hard negative (15841) still enters top-3; supporting passage (441632) not yet reliably in top-3. Tracked as a pending gap to attack."
+
+  - case_id: fiqa_aggressive_roth_401k_taxable
+    query_id: 10653
+    status: pending
+    query: "Should I be more aggressive in a Roth IRA, 401k, or taxable account?"
+    must_include_doc_ids:
+      - "187571"
+    must_not_include_doc_ids:
+      - "492971"
+    top_k: 3
+    failure_type: semantic_hard_negative
+    notes: "Hard negative (492971) still enters top-3. Tracked as a pending gap to attack."

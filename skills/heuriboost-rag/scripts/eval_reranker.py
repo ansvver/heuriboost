@@ -14,6 +14,7 @@ from common import (
     extract_features,
     hard_negative_at_k,
     load_dataset,
+    ndcg_at_k,
     rank_by_baseline,
     rank_by_model,
     require_dependencies,
@@ -43,43 +44,94 @@ def load_regression_cases(path: str | None):
 
 
 def run_regression_cases(ranked_df, cases) -> list[dict]:
-    failures = []
+    """Evaluate regression cases with status awareness.
+
+    Skips ``retired`` cases entirely. For each non-retired case, computes the
+    hit check (must_include in top_k, must_not_include out of top_k) plus the
+    optional A checks (``require_rank``, ``min_ndcg10``).
+
+    Returns a list of rich per-case result dicts:
+    ``{case_id, status, passed, missing_required, forbidden_present,
+    rank_of_required, query_ndcg10}``.
+    """
+    results = []
     for case in cases:
+        status = case.get("status", "gate")
+        if status == "retired":
+            continue
+
+        case_id = case.get("case_id", "<missing>")
         query_id = case.get("query_id")
         top_k = int(case.get("top_k", 5))
+
         if not query_id:
-            failures.append(
+            results.append(
                 {
-                    "case_id": case.get("case_id", "<missing>"),
+                    "case_id": case_id,
+                    "status": status,
+                    "passed": False,
+                    "missing_required": [],
+                    "forbidden_present": [],
+                    "rank_of_required": None,
+                    "query_ndcg10": 0.0,
                     "reason": "case is missing query_id",
                 }
             )
             continue
 
-        group = ranked_df[ranked_df["query_id"] == query_id].head(top_k)
+        query_id_str = str(query_id)
+        group = ranked_df[ranked_df["query_id"].astype(str) == query_id_str]
+
+        # Full model-ranked doc-id list for this query (ranked_df is already
+        # sorted by query_id then _heuriboost_score descending).
         ranked_doc_ids = group["doc_id"].astype(str).tolist()
-        missing_required = [
-            doc_id
-            for doc_id in case.get("must_include_doc_ids", [])
-            if str(doc_id) not in ranked_doc_ids
-        ]
-        forbidden_present = [
-            doc_id
-            for doc_id in case.get("must_not_include_doc_ids", [])
-            if str(doc_id) in ranked_doc_ids
-        ]
-        if missing_required or forbidden_present:
-            failures.append(
-                {
-                    "case_id": case.get("case_id", query_id),
-                    "query_id": query_id,
-                    "top_k": top_k,
-                    "missing_required": missing_required,
-                    "forbidden_present": forbidden_present,
-                    "ranked_doc_ids": ranked_doc_ids,
-                }
-            )
-    return failures
+        top_k_doc_ids = ranked_doc_ids[:top_k]
+
+        must_include = [str(d) for d in case.get("must_include_doc_ids", [])]
+        must_not_include = [str(d) for d in case.get("must_not_include_doc_ids", [])]
+
+        missing_required = [d for d in must_include if d not in top_k_doc_ids]
+        forbidden_present = [d for d in must_not_include if d in top_k_doc_ids]
+
+        # Rank of the first must_include doc in the full model ranking.
+        rank_of_required = None
+        if must_include:
+            for rank, doc_id in enumerate(ranked_doc_ids, start=1):
+                if doc_id in must_include:
+                    rank_of_required = rank
+                    break
+
+        # Per-query nDCG@10 on model-ranked labels.
+        labels = group["label"].astype(int).tolist()
+        query_ndcg10 = ndcg_at_k(labels, 10)
+
+        # Determine pass/fail.
+        passed = not missing_required and not forbidden_present
+
+        # A check: require_rank — first must_include doc must reach rank <= N.
+        require_rank = case.get("require_rank")
+        if require_rank is not None and rank_of_required is not None:
+            if rank_of_required > int(require_rank):
+                passed = False
+
+        # A check: min_ndcg10 — per-query nDCG@10 floor.
+        min_ndcg10 = case.get("min_ndcg10")
+        if min_ndcg10 is not None:
+            if query_ndcg10 < float(min_ndcg10):
+                passed = False
+
+        results.append(
+            {
+                "case_id": case_id,
+                "status": status,
+                "passed": passed,
+                "missing_required": missing_required,
+                "forbidden_present": forbidden_present,
+                "rank_of_required": rank_of_required,
+                "query_ndcg10": query_ndcg10,
+            }
+        )
+    return results
 
 
 def row_by_doc_id(ranked_df, query_id: str, doc_id: str):
@@ -279,7 +331,7 @@ def ranking_diff_frame(df, model_ranked):
     return pd.DataFrame(rows)
 
 
-def write_eval_report(path: Path, metrics: dict, regression_failures: list[dict]) -> None:
+def write_eval_report(path: Path, metrics: dict, case_results: list[dict]) -> None:
     lines = [
         "# HeuriBoost Evaluation Report",
         "",
@@ -300,22 +352,69 @@ def write_eval_report(path: Path, metrics: dict, regression_failures: list[dict]
             )
         )
 
+    gate_results = [r for r in case_results if r["status"] == "gate"]
+    pending_results = [r for r in case_results if r["status"] == "pending"]
+
     lines.extend(["", "## Regression Gate", ""])
-    if regression_failures:
-        lines.append(f"FAILED: {len(regression_failures)} case(s) failed.")
-        for failure in regression_failures:
+
+    # --- Gates ---
+    lines.append("### Gates")
+    lines.append("")
+    if gate_results:
+        gate_failures = [r for r in gate_results if not r["passed"]]
+        if gate_failures:
+            lines.append(f"FAILED: {len(gate_failures)} gate case(s) failed.")
+        else:
+            lines.append("PASSED: all gate cases passed.")
+        for result in gate_results:
+            mark = "PASS" if result["passed"] else "FAIL"
             lines.append("")
-            lines.append(f"- `{failure.get('case_id')}`")
-            if failure.get("missing_required"):
-                lines.append(
-                    f"  - Missing required docs: {', '.join(map(str, failure['missing_required']))}"
-                )
-            if failure.get("forbidden_present"):
-                lines.append(
-                    f"  - Forbidden docs in top-k: {', '.join(map(str, failure['forbidden_present']))}"
-                )
+            lines.append(f"- `{result['case_id']}`: {mark}")
+            if not result["passed"]:
+                if result.get("missing_required"):
+                    lines.append(
+                        f"  - Missing required docs: {', '.join(map(str, result['missing_required']))}"
+                    )
+                if result.get("forbidden_present"):
+                    lines.append(
+                        f"  - Forbidden docs in top-k: {', '.join(map(str, result['forbidden_present']))}"
+                    )
+                if result.get("rank_of_required") is not None:
+                    lines.append(f"  - Rank of required doc: {result['rank_of_required']}")
     else:
-        lines.append("PASSED: no regression failures.")
+        lines.append("(no gate cases)")
+
+    # --- Pending ---
+    lines.append("")
+    lines.append("### Pending")
+    lines.append("")
+    if pending_results:
+        pending_passed = [r for r in pending_results if r["passed"]]
+        if pending_passed:
+            lines.append(
+                f"PROMOTION CANDIDATES: {len(pending_passed)} pending case(s) "
+                f"passed this round."
+            )
+        else:
+            lines.append("No pending cases passed this round.")
+        for result in pending_results:
+            mark = "PASS" if result["passed"] else "FAIL"
+            promotion = " (promotion candidate)" if result["passed"] else ""
+            lines.append("")
+            lines.append(f"- `{result['case_id']}`: {mark}{promotion}")
+            if not result["passed"]:
+                if result.get("missing_required"):
+                    lines.append(
+                        f"  - Missing required docs: {', '.join(map(str, result['missing_required']))}"
+                    )
+                if result.get("forbidden_present"):
+                    lines.append(
+                        f"  - Forbidden docs in top-k: {', '.join(map(str, result['forbidden_present']))}"
+                    )
+                if result.get("rank_of_required") is not None:
+                    lines.append(f"  - Rank of required doc: {result['rank_of_required']}")
+    else:
+        lines.append("(no pending cases)")
 
     path.write_text("\n".join(lines) + "\n")
 
@@ -425,6 +524,16 @@ def main() -> None:
         help="Dataset split to evaluate",
     )
     parser.add_argument("--regression-cases", help="Path to regression_cases.yaml")
+    parser.add_argument(
+        "--ledger",
+        default="examples/fiqa/ledger.json",
+        help="Path to the committed cross-round ledger JSON (default: examples/fiqa/ledger.json)",
+    )
+    parser.add_argument(
+        "--no-ledger",
+        action="store_true",
+        help="Skip writing to the cross-round ledger (useful for ad-hoc eval)",
+    )
     args = parser.parse_args()
 
     require_dependencies("xgboost", "pandas", "yaml")
@@ -459,12 +568,12 @@ def main() -> None:
             metrics[baseline] = evaluate_ranked_frame(ranked)
 
     cases = load_regression_cases(args.regression_cases)
-    regression_failures = run_regression_cases(model_ranked, cases)
+    case_results = run_regression_cases(model_ranked, cases)
     case_analyses = build_case_analyses(
         eval_df, model_ranked, baseline_ranked, x_eval, cases
     )
 
-    write_eval_report(reports_dir / "eval_report.md", metrics, regression_failures)
+    write_eval_report(reports_dir / "eval_report.md", metrics, case_results)
     ranking_diff_frame(eval_df, model_ranked).to_csv(
         reports_dir / "ranking_diff.csv", index=False
     )
@@ -485,8 +594,45 @@ def main() -> None:
     print(f"Saved failure cases: {reports_dir / 'failure_cases.md'}")
     print(f"Saved failure analysis: {reports_dir / 'failure_analysis.md'}")
     print(f"Saved feature importance: {reports_dir / 'feature_importance.json'}")
-    if regression_failures:
-        raise SystemExit(f"Regression gate failed: {len(regression_failures)} case(s)")
+
+    # --- Per-status summary ---
+    gate_results = [r for r in case_results if r["status"] == "gate"]
+    pending_results = [r for r in case_results if r["status"] == "pending"]
+    gate_pass = sum(1 for r in gate_results if r["passed"])
+    pending_pass = sum(1 for r in pending_results if r["passed"])
+    promotion_candidates = [r["case_id"] for r in pending_results if r["passed"]]
+
+    # --- Cross-round ledger (Phase 3) ---
+    if not args.no_ledger:
+        import regression_ledger
+
+        heuriboost_metrics = metrics.get("heuriboost", {})
+        global_metrics = {
+            "ndcg@10": heuriboost_metrics.get("ndcg@10", 0.0),
+            "mrr@10": heuriboost_metrics.get("mrr@10", 0.0),
+        }
+        round_snapshot = regression_ledger.record(
+            global_metrics, case_results, args.split, args.ledger
+        )
+        vs_anchor = round_snapshot.get("vs_anchor")
+        if vs_anchor is None:
+            print("B vs anchor: no anchor yet — run set-anchor to establish one")
+        else:
+            regressed_str = "REGRESSED" if vs_anchor["regressed"] else "ok"
+            print(
+                f"B vs anchor: nDCG@10 delta={vs_anchor['ndcg@10']:+.4f} "
+                f"({regressed_str})"
+            )
+
+    print(f"Gates: {gate_pass}/{len(gate_results)} pass")
+    print(f"Pending: {pending_pass}/{len(pending_results)} pass")
+    if promotion_candidates:
+        print(f"Promotion candidates: {', '.join(promotion_candidates)}")
+
+    # Exit non-zero ONLY on gate failure. Pending failures never block.
+    gate_failures = [r for r in gate_results if not r["passed"]]
+    if gate_failures:
+        raise SystemExit(f"Regression gate failed: {len(gate_failures)} gate case(s)")
 
 
 if __name__ == "__main__":

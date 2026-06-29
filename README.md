@@ -95,6 +95,7 @@ evidence hits, and selected V0 feature contrasts.
 │   └── fiqa/
 │       ├── query_doc_examples.csv
 │       ├── regression_cases.yaml
+│       ├── ledger.json
 │       └── DATA_CARD.md
 └── skills/
     └── heuriboost-rag/
@@ -107,6 +108,7 @@ evidence hits, and selected V0 feature contrasts.
         │   ├── validate_dataset.py
         │   ├── train_reranker.py
         │   ├── eval_reranker.py
+        │   ├── regression_ledger.py
         │   └── build_fiqa_csv.py
         └── templates/
             ├── query_doc_examples.csv
@@ -148,6 +150,10 @@ Evaluate and run regression gates:
 ```bash
 python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
 ```
+
+The eval also appends a round snapshot to the cross-round ledger at
+`examples/fiqa/ledger.json` (see [Cross-round ledger](#cross-round-ledger)).
+Use `--no-ledger` to skip ledger writes for ad-hoc eval.
 
 Expected outputs:
 
@@ -238,12 +244,31 @@ and regression gates.
 
 ## Regression Cases
 
-Regression cases are gates, not training rows.
+Regression cases are exam questions, not training rows. Each case carries a
+`status`:
+
+- `gate` — attacked & frozen. A failure blocks (exit non-zero).
+- `pending` — a known gap to attack. Evaluated and reported, but failure does
+  NOT block (exit 0). These are the cases to attack next.
+- `retired` — invalidated by corpus/label drift. Not evaluated; kept for
+  history. A case with no `status` defaults to `gate` (backward compatible).
+
+A case may also declare optional per-case local metric checks (the "A" check):
+
+- `require_rank` (int): the first `must_include` doc must reach rank <= this
+  value (stricter than just top-k membership).
+- `min_ndcg10` (float): the per-query nDCG@10 must be >= this value.
+
+A case "passes" iff all `must_include` are within top_k (and the first reaches
+`require_rank` if set) AND no `must_not_include` is within top_k AND
+`min_ndcg10` is satisfied if set.
 
 ```yaml
 cases:
   - case_id: fiqa_expense_deduction_wrong_topic
     query_id: fiqa_q_001
+    status: gate
+    require_rank: 3
     query: "Can I deduct home-office expenses as a sole proprietor?"
     must_include_doc_ids:
       - fiqa_doc_home_office_deduction
@@ -257,13 +282,35 @@ cases:
       - "sole proprietor"
 ```
 
-If a required document drops out of top-k, or a forbidden document enters top-k,
-`eval_reranker.py` fails the regression gate.
+If a `gate` case fails, `eval_reranker.py` exits non-zero. `pending` failures
+are reported but do not change the exit code.
+
+### Cross-round ledger
+
+`regression_ledger.py` owns cross-round memory in a committed
+`examples/fiqa/ledger.json` (version-controlled, NOT gitignored, NOT
+auto-committed). Each evaluation round appends a snapshot (global metrics,
+per-case pass/fail, and a B-vs-anchor comparison). The anchor is a frozen
+snapshot's global metrics, manually refreshed when gains are confirmed.
+
+```bash
+# After an eval round, set the anchor (manual, one-time or on confirmed gains):
+python skills/heuriboost-rag/scripts/regression_ledger.py set-anchor --ledger examples/fiqa/ledger.json
+
+# Print a progress summary (gate/pending counts, promotion candidates, B line):
+python skills/heuriboost-rag/scripts/regression_ledger.py summary --ledger examples/fiqa/ledger.json
+
+# Promote a pending case to gate (interactive confirmation, no auto-promotion):
+python skills/heuriboost-rag/scripts/regression_ledger.py promote examples/fiqa/regression_cases.yaml <case_id> --ledger examples/fiqa/ledger.json
+```
+
+Use `--no-ledger` on `eval_reranker.py` to skip ledger writes for ad-hoc eval.
 
 ## Reports
 
 `eval_report.md`
-: Global metrics and regression gate status.
+: Global metrics and regression gate status, split into Gates (pass/fail list)
+and Pending (pass/fail list with promotion candidates).
 
 `ranking_diff.csv`
 : Before/after rank movement using dense rank as the default baseline.
