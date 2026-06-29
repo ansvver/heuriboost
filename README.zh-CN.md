@@ -167,17 +167,29 @@ examples/fiqa/output/
 
 提交进仓库的 `examples/fiqa/query_doc_examples.csv` 是由
 `skills/heuriboost-rag/scripts/build_fiqa_csv.py` 从 BEIR/FiQA-2018 离线生成的。
-重新生成方式：
+脚本先跑 BM25 + `all-MiniLM-L6-v2` + RRF 检索（FiQA 不自带候选），再用两种模式
+之一打标签。
+
+启发式模式 —— 零成本、确定性、无需 LLM（仓库里的 CSV 就是这样生成的）：
 
 ```bash
 python -m pip install -r skills/heuriboost-rag/requirements-build.txt
-export OPENAI_API_KEY=sk-...
-python skills/heuriboost-rag/scripts/build_fiqa_csv.py --output examples/fiqa/query_doc_examples.csv
+python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
+  --label-mode heuristic --output examples/fiqa/query_doc_examples.csv
 ```
 
-这一步需要联网（下载 FiQA）和 LLM API key（判定标签），因此由维护者在本地运行，
-不在 CI 中执行。其重依赖、下载的 FiQA 语料以及 dense encoder 权重都不会提交进仓库。
-数据来源记录见 `examples/fiqa/DATA_CARD.md`。
+LLM 模式 —— 通过 OpenAI 兼容的 judge 打完整 5 级标签（默认 DeepSeek）：
+
+```bash
+python -m pip install -r skills/heuriboost-rag/requirements-build.txt
+export DEEPSEEK_API_KEY=sk-...   # 或用 OPENAI_API_KEY 并加 --base-url ""
+python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
+  --label-mode llm --output examples/fiqa/query_doc_examples.csv
+```
+
+两种模式都需要联网（下载 FiQA）；只有 LLM 模式需要 API key。该步骤由维护者在本地
+运行，不在 CI 中执行。其重依赖、下载的 FiQA 语料以及 dense encoder 权重都不会提交
+进仓库。数据来源记录见 `examples/fiqa/DATA_CARD.md`。
 
 ## CSV 契约
 

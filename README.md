@@ -171,17 +171,31 @@ The generated `output/` directory is ignored by git.
 ## Regenerating the demo dataset
 
 The committed `examples/fiqa/query_doc_examples.csv` is generated offline from
-BEIR/FiQA-2018 by `skills/heuriboost-rag/scripts/build_fiqa_csv.py`. To
-regenerate it:
+BEIR/FiQA-2018 by `skills/heuriboost-rag/scripts/build_fiqa_csv.py`. It runs
+BM25 + `all-MiniLM-L6-v2` + RRF retrieval (FiQA ships no candidates), then
+labels with one of two modes.
+
+Heuristic mode — zero-cost, deterministic, no LLM (this is what produced the
+committed CSV):
 
 ```bash
 python -m pip install -r skills/heuriboost-rag/requirements-build.txt
-export OPENAI_API_KEY=sk-...
-python skills/heuriboost-rag/scripts/build_fiqa_csv.py --output examples/fiqa/query_doc_examples.csv
+python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
+  --label-mode heuristic --output examples/fiqa/query_doc_examples.csv
 ```
 
-This step needs network access (to download FiQA) and an LLM API key (to judge
-labels), so it is run locally by a maintainer, not in CI. Its heavy build
+LLM mode — full 5-level labels via an OpenAI-compatible judge (DeepSeek by
+default):
+
+```bash
+python -m pip install -r skills/heuriboost-rag/requirements-build.txt
+export DEEPSEEK_API_KEY=sk-...   # or OPENAI_API_KEY with --base-url ""
+python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
+  --label-mode llm --output examples/fiqa/query_doc_examples.csv
+```
+
+Both modes need network access (to download FiQA); only LLM mode needs an API
+key. The build is run locally by a maintainer, not in CI. Its heavy build
 dependencies, the downloaded FiQA corpus, and the dense-encoder weights are not
 committed. See `examples/fiqa/DATA_CARD.md` for provenance.
 
