@@ -4,6 +4,7 @@ Operational reference for the HeuriBoost Q-D reranker. The [README](../README.md
 covers the story, concepts, and demo results; this file holds the contracts and
 command details a maintainer needs day to day.
 
+- [Feature registry](#feature-registry)
 - [CSV contract](#csv-contract)
 - [Label scale](#label-scale)
 - [Regression cases](#regression-cases)
@@ -12,6 +13,41 @@ command details a maintainer needs day to day.
 - [Reports](#reports)
 - [Agent skill](#agent-skill)
 - [Regenerating the demo dataset](#regenerating-the-demo-dataset)
+
+## Feature registry
+
+Every feature is a declared `FeatureRecipe`, not scattered code. The source of
+truth is `skills/heuriboost-rag/templates/feature_recipes.yaml`; the Python
+implementation lives in `skills/heuriboost-rag/scripts/features/`
+(`registry.py`, `primitives.py`, `recipes.py`).
+
+Each recipe carries the spec §6.4 required fields:
+
+| Field | Meaning |
+|---|---|
+| `name`, `version` | feature identifier + per-feature version |
+| `description` | human-readable |
+| `task_profiles` | profiles that use it (V0: `qd_reranker`) |
+| `inputs` | input columns the feature reads (must be in `ALLOWED_INPUTS`) |
+| `impl` | implementation reference (V0: `extract_all`, the shared fn) |
+| `type`, `default_value` | `numeric` / 0.0 for all V0 |
+| `cost_tier` | `L0`..`L3` |
+| `online_safe` | must be true for the active profile |
+| `leakage_risk` | `low`/`medium`/`high` |
+| `expected_slices` | forward-looking; may be empty |
+| `owner` | owning team |
+
+`ALLOWED_INPUTS = {query_text, doc_text, dense_rank, dense_score, sparse_rank,
+sparse_score}`. Any other column (notably `label`, `split`, `query_id`,
+`doc_id`) is rejected at load time as a leakage / identifier vector.
+
+Loading is eager: `import common` triggers `FeatureRegistry.validate()`, which
+hard-fails (SystemExit) on a missing impl, a disallowed input, an
+`online_safe: false` recipe, or an empty required field. This makes the
+"FEATURE_NAMES must equal feature_recipes.yaml" contract a load-time check.
+
+The trained model's `reranker_metadata.json` records `feature_set_name`,
+`feature_set_version`, and a per-feature `feature_versions` dict.
 
 ## CSV contract
 

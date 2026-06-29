@@ -126,6 +126,7 @@ skill 模式见[参考手册](./docs/REFERENCE.zh-CN.md)。
 - [x] 标准 query-document CSV 契约 + 校验器
 - [x] 真实 XGBoost 排序模型，按 `query_id` 分组
 - [x] 检索 + 文本信号特征集（overlap、hard-negative、长度信号）
+- [x] FeatureRecipe registry / recipe DSL（声明式元数据 + load-time 泄漏/online-safe 校验）
 - [x] 指标：nDCG、MRR、Recall、hard-negative exposure，对比基线
 - [x] 报告：ranking diff、feature importance、确定性失败分析
 - [x] Regression case 作为 gate，含三态状态机（gate / pending / retired）
@@ -138,7 +139,6 @@ skill 模式见[参考手册](./docs/REFERENCE.zh-CN.md)。
 未完成：
 
 - [ ] 提交 demo 的 LLM 模式（benchmark 级）标签
-- [ ] 特征 registry / recipe DSL（当前特征是硬编码的）
 - [ ] 自动特征发现、消融与晋级（`FeatureMemory`）
 - [ ] 接外部后端的 HPO adapter
 - [ ] 其他 task profile（分类 / 回归 / …）

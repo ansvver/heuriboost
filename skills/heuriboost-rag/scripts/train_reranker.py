@@ -18,6 +18,7 @@ from common import (
     validate_dataset_frame,
     write_json,
 )
+from features import REGISTRY
 
 
 def load_case_denylist(cases_path: str) -> tuple[set[str], set[str]]:
@@ -232,6 +233,9 @@ def main() -> None:
     metadata = {
         "dataset": str(Path(args.dataset)),
         "feature_names": FEATURE_NAMES,
+        "feature_set_name": REGISTRY.feature_set_name,
+        "feature_set_version": REGISTRY.feature_set_version,
+        "feature_versions": REGISTRY.feature_versions(),
         "params": params,
         "rounds": args.rounds,
         "train_rows": int(len(train_df)),

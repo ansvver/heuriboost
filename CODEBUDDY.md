@@ -195,6 +195,7 @@ skills/heuriboost-rag/
   requirements.txt
   requirements-build.txt
   scripts/{common.py,inspect_rag_repo.py,validate_dataset.py,train_reranker.py,eval_reranker.py,regression_ledger.py,mine_case_sets.py,build_fiqa_csv.py}
+  scripts/features/{__init__.py,registry.py,primitives.py,recipes.py}
   templates/{query_doc_examples.csv,regression_cases.yaml,feature_recipes.yaml,promotion_gate.yaml}
 examples/fiqa/
   query_doc_examples.csv

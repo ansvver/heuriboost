@@ -138,6 +138,7 @@ Done:
 - [x] Standard query-document CSV contract + validator
 - [x] Real XGBoost ranking model, grouped by `query_id`
 - [x] Retriever + text-signal feature set (overlap, hard-negative, length signals)
+- [x] FeatureRecipe registry / recipe DSL (declared metadata + load-time leakage/online-safe validation)
 - [x] Metrics: nDCG, MRR, recall, hard-negative exposure vs baselines
 - [x] Reports: ranking diff, feature importance, deterministic failure analysis
 - [x] Regression cases as gates, with a three-state machine (gate / pending / retired)
@@ -150,7 +151,6 @@ Done:
 Not yet:
 
 - [ ] LLM-mode (benchmark-grade) labels for the committed demo
-- [ ] Feature registry / recipe DSL (features are currently hardcoded)
 - [ ] Automatic feature discovery, ablation, and promotion (`FeatureMemory`)
 - [ ] HPO adapter to an external backend
 - [ ] Other task profiles (classification / regression / …)

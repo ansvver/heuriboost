@@ -3,6 +3,7 @@
 HeuriBoost Q-D reranker 的操作参考。[README](../README.zh-CN.md) 讲故事、概念
 和 demo 效果；本文承接维护者日常需要的契约与命令细节。
 
+- [特征 registry](#特征-registry)
 - [CSV 契约](#csv-契约)
 - [标签含义](#标签含义)
 - [Regression cases](#regression-cases)
@@ -11,6 +12,41 @@ HeuriBoost Q-D reranker 的操作参考。[README](../README.zh-CN.md) 讲故事
 - [报告说明](#报告说明)
 - [Agent skill](#agent-skill)
 - [重新生成 demo 数据集](#重新生成-demo-数据集)
+
+## 特征 registry
+
+每个特征都是声明式的 `FeatureRecipe`，不是散落代码。元数据真源是
+`skills/heuriboost-rag/templates/feature_recipes.yaml`；Python 实现在
+`skills/heuriboost-rag/scripts/features/`（`registry.py`、`primitives.py`、
+`recipes.py`）。
+
+每个 recipe 携带规格 §6.4 必填字段：
+
+| 字段 | 含义 |
+|---|---|
+| `name`、`version` | 特征标识 + 单特征版本 |
+| `description` | 人类可读说明 |
+| `task_profiles` | 使用它的 profile（V0：`qd_reranker`） |
+| `inputs` | 特征读取的输入列（须在 `ALLOWED_INPUTS` 内） |
+| `impl` | 实现引用（V0：`extract_all`，共享函数） |
+| `type`、`default_value` | V0 全为 `numeric` / 0.0 |
+| `cost_tier` | `L0`..`L3` |
+| `online_safe` | 活跃 profile 下须为 true |
+| `leakage_risk` | `low`/`medium`/`high` |
+| `expected_slices` | 前瞻声明；可为空 |
+| `owner` | 归属团队 |
+
+`ALLOWED_INPUTS = {query_text, doc_text, dense_rank, dense_score, sparse_rank,
+sparse_score}`。任何其他列（尤其 `label`、`split`、`query_id`、`doc_id`）
+在加载时作为泄漏/标识符向量被拒。
+
+加载是 eager 的：`import common` 即触发 `FeatureRegistry.validate()`，遇到
+impl 缺失、inputs 越界、`online_safe: false` 或必填字段为空即硬失败
+（SystemExit）。这把"FEATURE_NAMES 必须等于 feature_recipes.yaml"契约变成
+load-time 检查。
+
+训练出的模型 `reranker_metadata.json` 记录 `feature_set_name`、
+`feature_set_version` 与 per-feature 的 `feature_versions` 字典。
 
 ## CSV 契约
 

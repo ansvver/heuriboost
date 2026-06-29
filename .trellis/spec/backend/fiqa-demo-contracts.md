@@ -47,9 +47,9 @@ output undermines the gate's authority.
 
 ## Contract: FEATURE_NAMES must equal feature_recipes.yaml
 
-**What**: `skills/heuriboost-rag/scripts/common.py::FEATURE_NAMES`, the dict keys
-built in `extract_features()`, and the features listed in
-`skills/heuriboost-rag/templates/feature_recipes.yaml` MUST be identical
+**What**: `skills/heuriboost-rag/scripts/common.py::FEATURE_NAMES`, the feature
+values computed in `features/recipes.py::extract_all`, and the features listed
+in `skills/heuriboost-rag/templates/feature_recipes.yaml` MUST be identical
 (names and set).
 
 **Why (silent failure)**: `eval_reranker.py`'s Feature Contrast block and
@@ -57,8 +57,20 @@ built in `extract_features()`, and the features listed in
 report/template but absent from `FEATURE_NAMES` does NOT raise — it silently
 prints `0.0000`, producing misleading failure analysis with no error.
 
-**Validation point**: After any feature add/remove/rename, grep that no stale
-name remains in code or templates, and confirm the three locations match.
+**Enforcement (registry load-time, since the feature-recipe-registry task)**:
+the `FeatureRegistry` (`scripts/features/registry.py`) loads
+`feature_recipes.yaml`, registers the shared `extract_all` impl, and runs
+`validate()` at `import common` time. The validation hard-fails (SystemExit)
+when:
+  - a recipe's `impl` does not resolve to a registered implementation,
+  - a recipe's `inputs` contains a column outside `ALLOWED_INPUTS`
+    (`{query_text, doc_text, dense_rank, dense_score, sparse_rank, sparse_score}`),
+  - a recipe is `online_safe: false` for the active task profile,
+  - a spec-required field is empty (except `expected_slices`).
+
+So the three-way identity is now a load-time check, not a grep-time check.
+Adding/removing/renaming a feature requires editing BOTH the YAML and
+`extract_all` (or registering a new impl) — a mismatch refuses to load.
 
 **Current V0 set (12)**: `dense_score, dense_rank_inverse, sparse_score,
 sparse_rank_inverse, rrf_score, term_overlap_ratio, number_overlap_count,

@@ -5,11 +5,24 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+
+# Feature registry: importing `features` eagerly loads feature_recipes.yaml,
+# registers the shared extract_all impl, and validates (impl binding, inputs
+# allowlist, online_safe, required fields). Any failure raises SystemExit.
+from features import REGISTRY, extract_features
+from features.primitives import (
+    entities,
+    numbers,
+    numeric_value,
+    rank_inverse,
+    tokenize,
+)
+
+FEATURE_NAMES = REGISTRY.names()
 
 REQUIRED_COLUMNS = {
     "query_id",
@@ -31,20 +44,6 @@ OPTIONAL_COLUMNS = {
 
 VALID_SPLITS = {"train", "validation", "test"}
 LABELS = {-1, 0, 1, 2, 3}
-FEATURE_NAMES = [
-    "dense_score",
-    "dense_rank_inverse",
-    "sparse_score",
-    "sparse_rank_inverse",
-    "rrf_score",
-    "term_overlap_ratio",
-    "number_overlap_count",
-    "entity_overlap_count",
-    "important_term_overlap",
-    "low_information_density_flag",
-    "doc_length_log",
-    "query_length_log",
-]
 
 
 @dataclass(frozen=True)
@@ -171,89 +170,6 @@ def validate_dataset_frame(df) -> ValidationResult:
         splits={key: int(value) for key, value in df["split"].value_counts().items()},
         warnings=warnings,
     )
-
-
-def tokenize(text: str) -> set[str]:
-    return set(re.findall(r"[a-zA-Z0-9]+", str(text).lower()))
-
-
-def numbers(text: str) -> set[str]:
-    return set(re.findall(r"\b\d+(?:\.\d+)?%?\b", str(text)))
-
-
-def entities(text: str) -> set[str]:
-    # Deterministic, dependency-free proxy for proper nouns / acronyms:
-    # capitalized words (e.g. "Roth", "IRA") and all-caps acronyms (e.g. "ETF").
-    return set(re.findall(r"\b[A-Z][a-zA-Z]+\b|\b[A-Z]{2,}\b", str(text)))
-
-
-def numeric_value(row, column: str, default: float = 0.0) -> float:
-    value = row.get(column, default)
-    try:
-        if value is None or (isinstance(value, float) and math.isnan(value)):
-            return default
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def rank_inverse(row, column: str) -> float:
-    rank = numeric_value(row, column, 0.0)
-    if rank <= 0:
-        return 0.0
-    return 1.0 / rank
-
-
-def extract_features(df):
-    pd = load_pandas()
-    rows = []
-    for _, row in df.iterrows():
-        query_text = str(row["query_text"])
-        doc_text = str(row["doc_text"])
-        query_tokens = tokenize(query_text)
-        doc_tokens = tokenize(doc_text)
-        shared_tokens = query_tokens & doc_tokens
-
-        dense_rank_inv = rank_inverse(row, "dense_rank")
-        sparse_rank_inv = rank_inverse(row, "sparse_rank")
-        rrf_score = 0.0
-        dense_rank = numeric_value(row, "dense_rank", 0.0)
-        sparse_rank = numeric_value(row, "sparse_rank", 0.0)
-        if dense_rank > 0:
-            rrf_score += 1.0 / (60.0 + dense_rank)
-        if sparse_rank > 0:
-            rrf_score += 1.0 / (60.0 + sparse_rank)
-
-        # Overlap of rarer/important terms approximated by longer shared tokens.
-        important_term_overlap = float(
-            sum(1 for token in shared_tokens if len(token) >= 6)
-        )
-
-        # Low-information-density proxy: low unique-token ratio or very short doc.
-        unique_ratio = len(set(doc_tokens)) / max(len(doc_tokens), 1)
-        low_information_density = (
-            1.0 if (unique_ratio < 0.5 or len(doc_tokens) < 5) else 0.0
-        )
-
-        rows.append(
-            {
-                "dense_score": numeric_value(row, "dense_score"),
-                "dense_rank_inverse": dense_rank_inv,
-                "sparse_score": numeric_value(row, "sparse_score"),
-                "sparse_rank_inverse": sparse_rank_inv,
-                "rrf_score": rrf_score,
-                "term_overlap_ratio": len(shared_tokens) / max(len(query_tokens), 1),
-                "number_overlap_count": float(len(numbers(query_text) & numbers(doc_text))),
-                "entity_overlap_count": float(
-                    len(entities(query_text) & entities(doc_text))
-                ),
-                "important_term_overlap": important_term_overlap,
-                "low_information_density_flag": low_information_density,
-                "doc_length_log": math.log1p(len(doc_tokens)),
-                "query_length_log": math.log1p(len(query_tokens)),
-            }
-        )
-    return pd.DataFrame(rows, columns=FEATURE_NAMES)
 
 
 def relevance_labels(df):
