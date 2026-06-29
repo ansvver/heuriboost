@@ -1,0 +1,39 @@
+# Python bytecode/cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python packaging/build output
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test/type/lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local OS/editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Local env/secrets
+.env
+.env.*
+
+# HeuriBoost generated outputs
+heuriboost_output/
+examples/financial_rag/output/
+
+# Trellis local runtime state
+.trellis/.developer
+.trellis/.runtime/

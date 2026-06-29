@@ -1,0 +1,64 @@
+feature_set:
+  name: heuriboost_rag_v0
+  version: 1
+  features:
+    - name: dense_score
+      type: numeric
+      default_value: 0.0
+      online_safe: true
+      leakage_risk: low
+      description: "Dense retriever score when available."
+    - name: dense_rank_inverse
+      type: numeric
+      default_value: 0.0
+      online_safe: true
+      leakage_risk: low
+      description: "1 / dense_rank when dense rank is available."
+    - name: sparse_score
+      type: numeric
+      default_value: 0.0
+      online_safe: true
+      leakage_risk: low
+      description: "Sparse retriever score when available."
+    - name: sparse_rank_inverse
+      type: numeric
+      default_value: 0.0
+      online_safe: true
+      leakage_risk: low
+      description: "1 / sparse_rank when sparse rank is available."
+    - name: rrf_score
+      type: numeric
+      default_value: 0.0
+      online_safe: true
+      leakage_risk: low
+      description: "Reciprocal rank fusion score from available dense/sparse ranks."
+    - name: term_overlap_ratio
+      type: numeric
+      default_value: 0.0
+      online_safe: true
+      leakage_risk: low
+      description: "Share of unique query tokens present in the document text."
+    - name: numeric_overlap_count
+      type: numeric
+      default_value: 0.0
+      online_safe: true
+      leakage_risk: low
+      description: "Count of numeric tokens shared by query and document."
+    - name: year_overlap_count
+      type: numeric
+      default_value: 0.0
+      online_safe: true
+      leakage_risk: low
+      description: "Count of four-digit years shared by query and document."
+    - name: quarter_overlap_count
+      type: numeric
+      default_value: 0.0
+      online_safe: true
+      leakage_risk: low
+      description: "Count of Q1-Q4 expressions shared by query and document."
+    - name: wrong_year_flag
+      type: numeric
+      default_value: 0.0
+      online_safe: true
+      leakage_risk: low
+      description: "1 when query has a year and document has a different year with no overlap."

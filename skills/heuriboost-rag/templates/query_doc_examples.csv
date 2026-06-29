@@ -1,0 +1,5 @@
+query_id,query_text,doc_id,chunk_id,doc_text,dense_rank,dense_score,sparse_rank,sparse_score,label,split
+q_example_001,What caused 2024 Q3 gross margin decline?,doc_2024_q3_earnings,chunk_001,2024 Q3 gross margin declined because raw material costs increased and freight expense rose.,3,0.82,1,14.2,3,train
+q_example_001,What caused 2024 Q3 gross margin decline?,doc_2023_q3_earnings,chunk_002,2023 Q3 gross margin declined because product mix shifted and discounting increased.,1,0.91,2,13.8,-1,train
+q_example_001,What caused 2024 Q3 gross margin decline?,doc_2024_annual_overview,chunk_003,The 2024 annual overview mentions margin pressure but does not explain the Q3 gross margin decline.,2,0.86,3,12.1,2,train
+q_example_001,What caused 2024 Q3 gross margin decline?,doc_hr_policy,chunk_004,The employee travel policy describes reimbursement limits and approval steps.,4,0.33,4,3.5,0,train

@@ -1,0 +1,1713 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adaptive XGBoost Heuristic Learning 中文说明</title>
+  <style>
+    :root {
+      --surface: #ffffff;
+      --panel: #f7f7f8;
+      --panel-2: #ededf0;
+      --ink: #111111;
+      --muted: #5f6570;
+      --line: #d8dbe1;
+      --signal: #e4002b;
+      --signal-soft: #fff0f3;
+      --blue: #002fa7;
+      --code: #f7f7f8;
+      --code-text: #111111;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--surface);
+    }
+
+    body {
+      margin: 0;
+      background: var(--surface);
+      color: var(--ink);
+      font-family: "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.56;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    a {
+      color: var(--ink);
+      text-decoration-color: var(--signal);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    .page {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 272px minmax(0, 1fr);
+      border-top: 1px solid var(--line);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      border-right: 1px solid var(--line);
+      background: var(--surface);
+      padding: 20px 16px;
+    }
+
+    .brand {
+      display: grid;
+      grid-template-columns: 42px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 16px;
+    }
+
+    .mark {
+      width: 42px;
+      height: 42px;
+      border: 1px solid var(--signal);
+      display: grid;
+      place-items: center;
+      color: var(--signal);
+      font-weight: 800;
+      font-size: 15px;
+      line-height: 1;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.25;
+      font-weight: 800;
+    }
+
+    .brand p {
+      margin: 6px 0 0;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .toc {
+      display: grid;
+      gap: 0;
+      font-size: 12px;
+    }
+
+    .toc a {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .toc a:hover {
+      color: var(--ink);
+    }
+
+    main {
+      min-width: 0;
+      background: var(--surface);
+    }
+
+    .hero {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 40px 32px 0;
+      border-bottom: 1px solid var(--line);
+      display: block;
+    }
+
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--signal);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .hero h2 {
+      margin: 0;
+      font-size: clamp(30px, 4.2vw, 62px);
+      line-height: 1.08;
+      font-weight: 800;
+      max-width: 1040px;
+      letter-spacing: 0;
+    }
+
+    .hero .summary {
+      margin: 18px 0 0;
+      max-width: 980px;
+      font-size: 15px;
+      line-height: 1.75;
+      color: var(--muted);
+    }
+
+    .meta-grid {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-top: 1px solid var(--line);
+      border-left: 1px solid var(--line);
+    }
+
+    .meta-item {
+      padding: 14px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      min-height: 78px;
+      background: var(--panel);
+    }
+
+    .meta-item strong {
+      display: block;
+      font-size: 12px;
+      color: var(--signal);
+      margin-bottom: 7px;
+    }
+
+    .meta-item span {
+      display: block;
+      font-size: 13px;
+      color: var(--ink);
+    }
+
+    .hero-diagram {
+      margin-top: 28px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+
+    .content {
+      padding: 0 32px 72px;
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    section {
+      border-top: 1px solid var(--line);
+      padding: 34px 0 42px;
+    }
+
+    section:first-child {
+      border-top: 0;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .section-num {
+      color: var(--signal);
+      font-weight: 800;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(24px, 3vw, 38px);
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 26px 0 12px;
+      font-size: 18px;
+      line-height: 1.3;
+    }
+
+    h4 {
+      margin: 20px 0 10px;
+      font-size: 14px;
+      line-height: 1.3;
+      color: var(--signal);
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    .lead {
+      max-width: 900px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .grid-2,
+    .grid-3,
+    .grid-4 {
+      display: grid;
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .box {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 16px;
+      min-width: 0;
+    }
+
+    .box.accent {
+      border-color: var(--signal);
+      background: var(--signal-soft);
+    }
+
+    .box h3,
+    .box h4 {
+      margin-top: 0;
+    }
+
+    .box p:last-child,
+    .box ul:last-child,
+    .box ol:last-child,
+    .box pre:last-child {
+      margin-bottom: 0;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin: 12px 0 4px;
+    }
+
+    .tag {
+      border: 1px solid var(--line);
+      padding: 4px 7px;
+      font-size: 11px;
+      line-height: 1.25;
+      background: var(--surface);
+      color: var(--ink);
+    }
+
+    .tag.red {
+      color: var(--signal);
+      border-color: var(--signal);
+      background: var(--signal-soft);
+    }
+
+    ul,
+    ol {
+      padding-left: 22px;
+      margin: 10px 0 18px;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.92em;
+      background: var(--code);
+      border: 1px solid var(--line);
+      padding: 1px 4px;
+      color: var(--ink);
+    }
+
+    pre {
+      margin: 14px 0 20px;
+      padding: 16px;
+      overflow: auto;
+      background: var(--code);
+      color: var(--code-text);
+      border: 1px solid var(--line);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      color: inherit;
+      font-size: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 12px;
+    }
+
+    th,
+    td {
+      text-align: left;
+      vertical-align: top;
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+    }
+
+    th {
+      background: var(--panel-2);
+      color: var(--signal);
+      font-weight: 800;
+    }
+
+    .diagram {
+      border: 1px solid var(--line);
+      margin: 20px 0 28px;
+      background: var(--surface);
+      overflow-x: auto;
+    }
+
+    .diagram-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--line);
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--signal);
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-width: 0;
+      background: var(--surface);
+    }
+
+    .diagram svg {
+      min-width: 900px;
+    }
+
+    svg text {
+      font-family: "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    .note {
+      border-left: 4px solid var(--signal);
+      padding: 10px 14px;
+      background: var(--signal-soft);
+      margin: 16px 0;
+    }
+
+    .checklist {
+      counter-reset: step;
+      padding-left: 0;
+      list-style: none;
+    }
+
+    .checklist li {
+      counter-increment: step;
+      border-top: 1px solid var(--line);
+      padding: 12px 0 12px 44px;
+      position: relative;
+      margin: 0;
+    }
+
+    .checklist li::before {
+      content: counter(step, decimal-leading-zero);
+      position: absolute;
+      left: 0;
+      top: 12px;
+      color: var(--signal);
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .footer {
+      border-top: 1px solid var(--line);
+      padding: 24px 32px;
+      color: var(--muted);
+      font-size: 12px;
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 980px) {
+      .page {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .toc {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 18px;
+      }
+
+      .hero {
+        padding: 28px 18px 0;
+      }
+
+      .content {
+        padding: 0 18px 56px;
+      }
+
+      .grid-2,
+      .grid-3,
+      .grid-4,
+      .meta-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .section-head {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .toc {
+        grid-template-columns: 1fr;
+      }
+
+      .hero h2 {
+        font-size: 30px;
+      }
+
+      .hero .summary {
+        font-size: 13px;
+      }
+
+      .diagram svg {
+        min-width: 760px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">XGB</div>
+        <div>
+          <h1>Adaptive XGBoost<br>中文实现说明</h1>
+          <p>基于 ADAPTIVE_XGBOOST_HEURISTIC_SPEC.md，生成于 2026-06-26</p>
+        </div>
+      </div>
+      <nav class="toc" aria-label="目录">
+        <a href="#goal">目标</a>
+        <a href="#principles">核心原则</a>
+        <a href="#architecture">系统流程</a>
+        <a href="#profiles">任务 Profile</a>
+        <a href="#non-goals">V0 非目标</a>
+        <a href="#schemas">数据模型</a>
+        <a href="#labels">标签构建</a>
+        <a href="#splits">数据集隔离</a>
+        <a href="#regression-set">回归集生命周期</a>
+        <a href="#features">特征体系</a>
+        <a href="#initial-features">V0 特征</a>
+        <a href="#hard-examples">Hard Examples</a>
+        <a href="#training">模型训练</a>
+        <a href="#evaluation">评测指标</a>
+        <a href="#gates">上线门禁</a>
+        <a href="#discovery">自动特征发现</a>
+        <a href="#memory">特征记忆</a>
+        <a href="#serving">服务链路</a>
+        <a href="#rollout">Shadow / Backtest / A-B</a>
+        <a href="#exploration">探索机制</a>
+        <a href="#explainability">可解释性</a>
+        <a href="#repo">仓库结构</a>
+        <a href="#plan">实施计划</a>
+        <a href="#checklist">AI Checklist</a>
+        <a href="#decisions">待决问题</a>
+        <a href="#success">成功标准</a>
+        <a href="#qd-profile">Q-D Profile</a>
+      </nav>
+    </aside>
+
+    <main>
+      <header class="hero">
+        <p class="eyebrow">Adaptive XGBoost · Heuristic Feature Discovery · Regression Gates</p>
+        <h2>一个可迁移的 XGBoost 启发式学习框架</h2>
+        <p class="summary">
+          这份 HTML 将 <code>ADAPTIVE_XGBOOST_HEURISTIC_SPEC.md</code> 转成中文工程说明。它把原本的 Q-D Reranker 思路抽象为通用框架，适用于排序、二分类、多分类、回归、计数和部分 time-to-event 场景。核心不是“自动调参”，而是让数据快照、特征配方、模型训练、评测门禁、失败记忆和自动特征发现形成可维护闭环。
+        </p>
+
+        <div class="meta-grid" aria-label="文档元信息">
+          <div class="meta-item">
+            <strong>状态</strong>
+            <span>Draft</span>
+          </div>
+          <div class="meta-item">
+            <strong>适用任务</strong>
+            <span>ranking / classification / regression / count / survival</span>
+          </div>
+          <div class="meta-item">
+            <strong>核心模型</strong>
+            <span>XGBoost objective selected by task profile</span>
+          </div>
+          <div class="meta-item">
+            <strong>关键机制</strong>
+            <span>FeatureRecipe + RegressionCase + PromotionGate</span>
+          </div>
+        </div>
+
+        <div class="hero-diagram">
+          <svg viewBox="0 0 1120 420" role="img" aria-labelledby="hero-title">
+            <title id="hero-title">Adaptive XGBoost 通用学习闭环</title>
+            <defs>
+              <marker id="arrow-main" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="#111111"></path>
+              </marker>
+              <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="#e4002b"></path>
+              </marker>
+            </defs>
+            <rect width="1120" height="420" fill="#ffffff"></rect>
+            <path d="M40 60 H1080 M40 140 H1080 M40 220 H1080 M40 300 H1080 M40 380 H1080 M40 60 V380 M200 60 V380 M360 60 V380 M520 60 V380 M680 60 V380 M840 60 V380 M1000 60 V380" stroke="#d8dbe1" stroke-width="1"></path>
+            <text x="44" y="38" font-size="22" font-weight="800" fill="#111111">Adaptive XGBoost Heuristic Learning</text>
+            <text x="44" y="402" font-size="13" fill="#5f6570">固定快照、任务 Profile、特征 DSL、XGBoost 训练、回归门禁、自动特征发现。</text>
+
+            <g transform="translate(70 136)">
+              <rect width="132" height="70" fill="#f7f7f8" stroke="#111111"></rect>
+              <text x="16" y="30" font-size="16" font-weight="800" fill="#111111">Data Snapshot</text>
+              <text x="16" y="52" font-size="12" fill="#5f6570">数据 / 特征快照</text>
+            </g>
+            <g transform="translate(248 136)">
+              <rect width="132" height="70" fill="#f7f7f8" stroke="#111111"></rect>
+              <text x="16" y="30" font-size="16" font-weight="800" fill="#111111">Task Profile</text>
+              <text x="16" y="52" font-size="12" fill="#5f6570">objective / metric</text>
+            </g>
+            <g transform="translate(426 136)">
+              <rect width="132" height="70" fill="#fff0f3" stroke="#e4002b"></rect>
+              <text x="16" y="30" font-size="16" font-weight="800" fill="#111111">FeatureRecipe</text>
+              <text x="16" y="52" font-size="12" fill="#5f6570">DSL / registry</text>
+            </g>
+            <g transform="translate(604 136)">
+              <rect width="132" height="70" fill="#f7f7f8" stroke="#111111"></rect>
+              <text x="16" y="30" font-size="16" font-weight="800" fill="#111111">XGBoost</text>
+              <text x="16" y="52" font-size="12" fill="#5f6570">rank / class / reg</text>
+            </g>
+            <g transform="translate(782 136)">
+              <rect width="132" height="70" fill="#fff0f3" stroke="#e4002b"></rect>
+              <text x="16" y="30" font-size="16" font-weight="800" fill="#111111">Gates</text>
+              <text x="16" y="52" font-size="12" fill="#5f6570">slice / regression</text>
+            </g>
+            <g transform="translate(960 136)">
+              <rect width="112" height="70" fill="#f7f7f8" stroke="#111111"></rect>
+              <text x="16" y="30" font-size="16" font-weight="800" fill="#111111">Promote</text>
+              <text x="16" y="52" font-size="12" fill="#5f6570">controlled rollout</text>
+            </g>
+            <path d="M202 171 H248" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow-main)"></path>
+            <path d="M380 171 H426" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow-main)"></path>
+            <path d="M558 171 H604" stroke="#e4002b" stroke-width="1.8" marker-end="url(#arrow-red)"></path>
+            <path d="M736 171 H782" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow-main)"></path>
+            <path d="M914 171 H960" stroke="#e4002b" stroke-width="1.8" marker-end="url(#arrow-red)"></path>
+
+            <path d="M850 206 C850 286 530 326 202 206" fill="none" stroke="#e4002b" stroke-width="1.6" marker-end="url(#arrow-red)"></path>
+            <text x="454" y="314" font-size="15" font-weight="800" fill="#e4002b">failure memory -> feature discovery -> next experiment</text>
+          </svg>
+        </div>
+      </header>
+
+      <div class="content">
+        <section id="goal">
+          <div class="section-head">
+            <div class="section-num">01</div>
+            <div>
+              <h2>目标</h2>
+              <p class="lead">构建一个自适应 XGBoost 训练框架，让标注样本、历史失败、特征实验和任务反馈持续推动模型进化。</p>
+            </div>
+          </div>
+          <pre><code>Data snapshot -> feature recipe -> XGBoost model -> evaluation gates -> failure memory -> feature discovery -> controlled promotion</code></pre>
+          <div class="grid-3">
+            <div class="box"><h3>排序</h3><p>Query-document reranking、搜索排序、推荐排序。目标是 group 内候选竞争，通常用 nDCG、MRR、MAP。</p></div>
+            <div class="box"><h3>分类</h3><p>欺诈、流失、风险、意图、工单路由。目标是概率、类别或阈值决策，关注 PR-AUC、logloss、召回和误报。</p></div>
+            <div class="box"><h3>回归</h3><p>定价、需求预测、评分、计数和 rate。目标是数值误差、校准、尾部误差和切片偏差。</p></div>
+          </div>
+          <div class="tag-row">
+            <span class="tag red">ranking</span>
+            <span class="tag red">binary class</span>
+            <span class="tag red">multi-class</span>
+            <span class="tag red">regression</span>
+            <span class="tag red">count/rate</span>
+            <span class="tag red">survival/time</span>
+          </div>
+        </section>
+
+        <section id="principles">
+          <div class="section-head">
+            <div class="section-num">02</div>
+            <div>
+              <h2>核心原则</h2>
+              <p class="lead">这些原则是系统边界。自动发现特征和自动训练都不能绕过这些边界。</p>
+            </div>
+          </div>
+          <ol class="checklist">
+            <li><strong>评测快照固定。</strong>候选模型必须在同一 data snapshot、feature snapshot 和 task split 上比较。</li>
+            <li><strong>训练、验证、回归、测试硬隔离。</strong>Regression cases 是门禁，不是训练材料。</li>
+            <li><strong>特征必须在预测时可用。</strong>未来标签、结果后行为、人工修正和下游决策只能做标签或诊断。</li>
+            <li><strong>优化任务效用，不优化泛泛准确率。</strong>排序看 evidence quality，分类看错判成本，回归看校准误差或业务损失。</li>
+            <li><strong>新特征必须实验化。</strong>每个 candidate feature 都要经过 ablation、slice evaluation、成本/延迟、泄漏检查和决策。</li>
+            <li><strong>每个已修复失败都进入回归集。</strong>历史失败应该成为耐久 gate。</li>
+            <li><strong>启发式是系统状态。</strong>系统要记住哪些想法有效、哪些失败、在哪些 task profile 下有效。</li>
+          </ol>
+        </section>
+
+        <section id="architecture">
+          <div class="section-head">
+            <div class="section-num">03</div>
+            <div>
+              <h2>系统流程</h2>
+              <p class="lead">框架分为在线/批量预测链路和离线学习链路。两条链路通过日志、标签、失败记忆和特征发现闭环连接。</p>
+            </div>
+          </div>
+          <div class="diagram">
+            <div class="diagram-title"><span>SVG 流程图 A</span><span>Prediction Path / Offline Learning Path</span></div>
+            <svg viewBox="0 0 1160 520" role="img" aria-labelledby="flow-title">
+              <title id="flow-title">预测链路与离线学习链路</title>
+              <defs>
+                <marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#111111"></path></marker>
+                <marker id="flow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#e4002b"></path></marker>
+              </defs>
+              <rect width="1160" height="520" fill="#ffffff"></rect>
+              <line x1="40" y1="250" x2="1120" y2="250" stroke="#111111"></line>
+              <text x="40" y="46" font-size="21" font-weight="800" fill="#111111">在线 / 批量预测链路</text>
+              <text x="40" y="296" font-size="21" font-weight="800" fill="#111111">离线学习链路</text>
+
+              <g transform="translate(40 84)"><rect width="140" height="66" fill="#f7f7f8" stroke="#111111"></rect><text x="16" y="30" font-size="15" font-weight="800">input</text><text x="16" y="49" font-size="12" fill="#5f6570">entity / request</text></g>
+              <g transform="translate(210 84)"><rect width="150" height="66" fill="#f7f7f8" stroke="#111111"></rect><text x="16" y="30" font-size="15" font-weight="800">task resolver</text><text x="16" y="49" font-size="12" fill="#5f6570">选择 task profile</text></g>
+              <g transform="translate(390 84)"><rect width="160" height="66" fill="#f7f7f8" stroke="#111111"></rect><text x="16" y="30" font-size="15" font-weight="800">feature fetch</text><text x="16" y="49" font-size="12" fill="#5f6570">online-safe features</text></g>
+              <g transform="translate(580 84)"><rect width="150" height="66" fill="#fff0f3" stroke="#e4002b"></rect><text x="16" y="30" font-size="15" font-weight="800">XGBoost</text><text x="16" y="49" font-size="12" fill="#5f6570">objective by profile</text></g>
+              <g transform="translate(760 84)"><rect width="160" height="66" fill="#f7f7f8" stroke="#111111"></rect><text x="16" y="30" font-size="15" font-weight="800">postprocess</text><text x="16" y="49" font-size="12" fill="#5f6570">threshold / clip / rank</text></g>
+              <g transform="translate(950 84)"><rect width="150" height="66" fill="#f7f7f8" stroke="#111111"></rect><text x="16" y="30" font-size="15" font-weight="800">prediction</text><text x="16" y="49" font-size="12" fill="#5f6570">score / class / list</text></g>
+
+              <path d="M180 117 H210" stroke="#111111" stroke-width="1.5" marker-end="url(#flow-arrow)"></path>
+              <path d="M360 117 H390" stroke="#111111" stroke-width="1.5" marker-end="url(#flow-arrow)"></path>
+              <path d="M550 117 H580" stroke="#e4002b" stroke-width="1.8" marker-end="url(#flow-red)"></path>
+              <path d="M730 117 H760" stroke="#111111" stroke-width="1.5" marker-end="url(#flow-arrow)"></path>
+              <path d="M920 117 H950" stroke="#111111" stroke-width="1.5" marker-end="url(#flow-arrow)"></path>
+
+              <g transform="translate(40 330)"><rect width="150" height="66" fill="#f7f7f8" stroke="#111111"></rect><text x="16" y="30" font-size="15" font-weight="800">logs + labels</text><text x="16" y="49" font-size="12" fill="#5f6570">outcomes / failures</text></g>
+              <g transform="translate(220 330)"><rect width="150" height="66" fill="#f7f7f8" stroke="#111111"></rect><text x="16" y="30" font-size="15" font-weight="800">dataset builder</text><text x="16" y="49" font-size="12" fill="#5f6570">fixed snapshots</text></g>
+              <g transform="translate(400 330)"><rect width="160" height="66" fill="#fff0f3" stroke="#e4002b"></rect><text x="16" y="30" font-size="15" font-weight="800">split isolation</text><text x="16" y="49" font-size="12" fill="#5f6570">train / val / reg / test</text></g>
+              <g transform="translate(590 330)"><rect width="150" height="66" fill="#f7f7f8" stroke="#111111"></rect><text x="16" y="30" font-size="15" font-weight="800">train</text><text x="16" y="49" font-size="12" fill="#5f6570">profile objective</text></g>
+              <g transform="translate(770 330)"><rect width="150" height="66" fill="#fff0f3" stroke="#e4002b"></rect><text x="16" y="30" font-size="15" font-weight="800">gates</text><text x="16" y="49" font-size="12" fill="#5f6570">slice / regression</text></g>
+              <g transform="translate(950 330)"><rect width="150" height="66" fill="#f7f7f8" stroke="#111111"></rect><text x="16" y="30" font-size="15" font-weight="800">rollout</text><text x="16" y="49" font-size="12" fill="#5f6570">shadow / A-B</text></g>
+
+              <path d="M190 363 H220" stroke="#111111" stroke-width="1.5" marker-end="url(#flow-arrow)"></path>
+              <path d="M370 363 H400" stroke="#e4002b" stroke-width="1.8" marker-end="url(#flow-red)"></path>
+              <path d="M560 363 H590" stroke="#111111" stroke-width="1.5" marker-end="url(#flow-arrow)"></path>
+              <path d="M740 363 H770" stroke="#e4002b" stroke-width="1.8" marker-end="url(#flow-red)"></path>
+              <path d="M920 363 H950" stroke="#111111" stroke-width="1.5" marker-end="url(#flow-arrow)"></path>
+              <path d="M1024 330 C1036 244 1030 184 1030 150" stroke="#e4002b" stroke-width="1.8" fill="none" marker-end="url(#flow-red)"></path>
+            </svg>
+          </div>
+        </section>
+
+        <section id="profiles">
+          <div class="section-head">
+            <div class="section-num">04</div>
+            <div>
+              <h2>Task Profiles</h2>
+              <p class="lead">Task profile 绑定数据语义、target 类型、objective、指标、门禁、slices 和 serving 行为。框架不能硬编码某一个 objective。</p>
+            </div>
+          </div>
+          <pre><code>task_profile:
+  name: fraud_binary_classification
+  task_type: binary_classification
+  entity_key: transaction_id
+  label_field: is_fraud
+  prediction_type: probability
+  objective: binary:logistic
+  primary_metric: pr_auc
+  secondary_metrics:
+    - roc_auc
+    - logloss
+    - recall_at_fixed_precision
+  decision_policy:
+    type: threshold
+    threshold_source: validation_cost_curve
+  critical_slices:
+    - high_value_transaction
+    - new_merchant
+    - cross_border</code></pre>
+          <table>
+            <thead><tr><th>Task Type</th><th>示例</th><th>XGBoost Objective</th><th>典型指标</th></tr></thead>
+            <tbody>
+              <tr><td><code>ranking</code></td><td>Q-D reranking, search ranking</td><td><code>rank:ndcg</code>, <code>rank:pairwise</code>, <code>rank:map</code></td><td>nDCG@k, MAP@k, MRR@k, Recall@k</td></tr>
+              <tr><td><code>binary_classification</code></td><td>fraud, churn, risk</td><td><code>binary:logistic</code>, <code>binary:hinge</code></td><td>PR-AUC, ROC-AUC, logloss, F1</td></tr>
+              <tr><td><code>multi_classification</code></td><td>intent routing, category prediction</td><td><code>multi:softprob</code>, <code>multi:softmax</code></td><td>accuracy, macro-F1, logloss</td></tr>
+              <tr><td><code>regression</code></td><td>price, score, demand</td><td><code>reg:squarederror</code>, <code>reg:absoluteerror</code>, <code>reg:pseudohubererror</code></td><td>RMSE, MAE, MAPE, pinball loss</td></tr>
+              <tr><td><code>count</code></td><td>event counts</td><td><code>count:poisson</code></td><td>Poisson deviance, RMSE, calibration</td></tr>
+              <tr><td><code>survival</code></td><td>time-to-event</td><td><code>survival:cox</code>, <code>survival:aft</code></td><td>concordance, AFT NLL</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="non-goals">
+          <div class="section-head">
+            <div class="section-num">05</div>
+            <div>
+              <h2>V0 非目标</h2>
+              <p class="lead">V0 的重点是可复现、可评估、可回滚的 XGBoost 启发式系统，不是大而全 AutoML。</p>
+            </div>
+          </div>
+          <ul>
+            <li>不尝试成为完整 AutoML 平台。</li>
+            <li>不替代领域数据收集、标注或产品决策策略。</li>
+            <li>不直接用 regression cases 训练。</li>
+            <li>不允许没有 feature registry 的散装特征代码增长。</li>
+            <li>不只优化单一全局指标，而忽略 slices、历史失败和运行约束。</li>
+            <li>除非 task profile 明确允许，不在线上热路径使用昂贵 LLM 或人工 review。</li>
+          </ul>
+        </section>
+
+        <section id="schemas">
+          <div class="section-head">
+            <div class="section-num">06</div>
+            <div>
+              <h2>数据模型</h2>
+              <p class="lead">四个通用 schema 是框架地基：训练样本、预测上下文快照、回归 case、特征配方。</p>
+            </div>
+          </div>
+          <h3>6.1 LearningExample</h3>
+          <p>一行表示一个监督学习样本。排序任务中多行共享 <code>group_id</code>；分类/回归通常每行对应一个实体或事件。</p>
+          <pre><code>{
+  "example_id": "txn_001",
+  "task_profile": "fraud_binary_classification",
+  "entity_id": "transaction_001",
+  "group_id": null,
+  "event_timestamp": "2026-06-26T10:00:00Z",
+  "feature_snapshot_id": "feat_2026_06_26_0001",
+  "data_snapshot_id": "data_2026_06_26_0001",
+  "label": 1,
+  "label_type": "binary",
+  "label_sources": ["chargeback", "human_review"],
+  "label_confidence": 0.98,
+  "slice_tags": ["high_value_transaction", "new_merchant"],
+  "weight": 4.0,
+  "split": "train"
+}</code></pre>
+          <table>
+            <thead><tr><th>字段</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td><code>example_id</code></td><td>稳定行 ID。</td></tr>
+              <tr><td><code>task_profile</code></td><td>样本所属任务配置。</td></tr>
+              <tr><td><code>entity_id</code></td><td>被预测对象：transaction、user、document、query-doc pair、listing、product 等。</td></tr>
+              <tr><td><code>group_id</code></td><td>排序 group 或分组预测上下文。普通分类/回归为空。</td></tr>
+              <tr><td><code>event_timestamp</code></td><td>预测事件时间，用于 temporal split 和泄漏检查。</td></tr>
+              <tr><td><code>feature_snapshot_id / data_snapshot_id</code></td><td>可复现实验所需的不可变数据/特征引用。</td></tr>
+              <tr><td><code>label / label_type / label_sources / label_confidence</code></td><td>目标值和来源。</td></tr>
+              <tr><td><code>slice_tags</code></td><td>评测切片，例如 query type、用户分群、地域、品类。</td></tr>
+              <tr><td><code>weight</code></td><td>成本敏感学习或曝光校正权重。</td></tr>
+            </tbody>
+          </table>
+
+          <h3>6.2 PredictionContextSnapshot</h3>
+          <p>这是 Q-D reranking 中 <code>CandidateSnapshot</code> 的泛化。排序任务存候选集合；分类/回归任务存训练或评估使用的不可变特征/数据上下文。</p>
+          <pre><code>{
+  "snapshot_id": "ctx_2026_06_26_0001",
+  "task_profile": "search_ranking",
+  "context_type": "ranking_candidates",
+  "group_id": "query_001",
+  "created_at": "2026-06-26T10:00:00Z",
+  "source_config_id": "hybrid_retriever_v3",
+  "entities": [
+    {
+      "entity_id": "doc_123::chunk_004",
+      "entity_version": "v2026-06-20",
+      "source_rank": 3,
+      "source_score": 0.812
+    }
+  ]
+}</code></pre>
+          <pre><code>{
+  "snapshot_id": "ctx_2026_06_26_1000",
+  "task_profile": "churn_binary_classification",
+  "context_type": "row_features",
+  "entity_id": "user_123",
+  "event_timestamp": "2026-06-26T10:00:00Z",
+  "source_config_id": "feature_pipeline_v7",
+  "feature_snapshot_id": "feat_2026_06_26_0001"
+}</code></pre>
+          <div class="note">规则：baseline 和 candidate model 的评估必须复用同一个 context snapshot。</div>
+
+          <h3>6.3 RegressionCase</h3>
+          <p>Regression cases 是历史失败门禁，不直接进入训练集。它需要用任务语义表达 expected behavior。</p>
+          <pre><code>{
+  "case_id": "reg_001",
+  "task_profile": "fraud_binary_classification",
+  "entity_id": "transaction_987",
+  "data_snapshot_id": "data_2026_06_26_0001",
+  "expected_behavior": {
+    "type": "classification",
+    "positive_label": 1,
+    "min_score": 0.85,
+    "must_not_predict_label": 0
+  },
+  "failure_type": "false_negative_high_value",
+  "slice_tags": ["high_value_transaction", "new_merchant"],
+  "notes": "Prior model scored a confirmed fraud transaction below manual review threshold."
+}</code></pre>
+          <pre><code>{
+  "case_id": "reg_rank_001",
+  "task_profile": "qd_reranking",
+  "group_id": "query_001",
+  "must_include_entity_ids": ["doc_123::chunk_004"],
+  "acceptable_entity_ids": ["doc_456::chunk_009"],
+  "must_not_include_entity_ids": ["doc_old_2023::chunk_002"],
+  "failure_type": "temporal_hard_negative"
+}</code></pre>
+          <div class="grid-4">
+            <div class="box"><h3>Ranking</h3><p><code>must_include</code>、<code>must_not_include</code>、rank threshold。</p></div>
+            <div class="box"><h3>Classification</h3><p>expected class、score threshold、false-positive/false-negative guard。</p></div>
+            <div class="box"><h3>Regression</h3><p>acceptable prediction range 或 max absolute error。</p></div>
+            <div class="box"><h3>Count / Rate</h3><p>acceptable bucket、calibration bucket、max relative error。</p></div>
+          </div>
+
+          <h3>6.4 FeatureRecipe</h3>
+          <pre><code>name: merchant_velocity_24h
+version: 1
+description: Counts prior transactions for the same merchant in the last 24 hours.
+task_profiles:
+  - fraud_binary_classification
+inputs:
+  - entity_id
+  - event_timestamp
+  - transaction_history
+expr: count_events(entity.merchant_id, window="24h", before=event_timestamp)
+type: numeric
+default_value: 0.0
+cost_tier: L1
+online_safe: true
+leakage_risk: medium
+expected_slices:
+  - new_merchant
+  - high_velocity_merchant
+owner: risk_modeling</code></pre>
+          <div class="tag-row">
+            <span class="tag">name</span><span class="tag">version</span><span class="tag">description</span><span class="tag">task_profiles</span><span class="tag">inputs</span><span class="tag">expr</span><span class="tag">type</span><span class="tag">default_value</span><span class="tag">cost_tier</span><span class="tag">online_safe</span><span class="tag">leakage_risk</span><span class="tag">expected_slices</span><span class="tag">owner</span>
+          </div>
+        </section>
+
+        <section id="labels">
+          <div class="section-head">
+            <div class="section-num">07</div>
+            <div>
+              <h2>标签构建</h2>
+              <p class="lead">标签来源要分层处理。它们不是同等可信的真值。</p>
+            </div>
+          </div>
+          <table>
+            <thead><tr><th>来源类型</th><th>置信度</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td><code>human_label</code></td><td>最高</td><td>golden sets、regression cases、audit samples。</td></tr>
+              <tr><td><code>verified_outcome</code></td><td>高</td><td>chargeback、cancel、purchase、default、resolved ticket。</td></tr>
+              <tr><td><code>downstream_decision</code></td><td>中</td><td>点击、升级、引用、reviewer 选择类别。</td></tr>
+              <tr><td><code>llm_judge_label</code></td><td>中</td><td>可扩展弱监督，必须用人工标签校准。</td></tr>
+              <tr><td><code>pseudo_label</code></td><td>低</td><td>用于启动、弱监督和 hard example mining。</td></tr>
+            </tbody>
+          </table>
+          <div class="grid-2">
+            <div class="box">
+              <h3>冲突处理</h3>
+              <ul>
+                <li><code>human_label</code> 覆盖所有其他标签。</li>
+                <li><code>verified_outcome</code> 覆盖行为代理。</li>
+                <li>已知 regression expected behavior 覆盖弱标签。</li>
+                <li>LLM judge 和 verified label 冲突时进入 audit 或降低置信度。</li>
+                <li>用户对错误预测的行为不会让错误预测变正确。</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>标签元数据</h3>
+              <pre><code>{
+  "label": 1,
+  "label_type": "binary",
+  "label_confidence": 0.98,
+  "label_sources": ["chargeback", "human_review"],
+  "label_rationale": "Confirmed chargeback and manual fraud review.",
+  "exposure_position": null,
+  "was_exploration_candidate": false
+}</code></pre>
+            </div>
+          </div>
+          <div class="note">重要边界：label fields 永远不能作为线上模型特征。</div>
+        </section>
+
+        <section id="splits">
+          <div class="section-head">
+            <div class="section-num">08</div>
+            <div>
+              <h2>数据集隔离</h2>
+              <p class="lead">训练集教模型学习，回归集防模型忘事。Temporal task 不能随机切分。</p>
+            </div>
+          </div>
+          <div class="diagram">
+            <div class="diagram-title"><span>SVG 流程图 B</span><span>Split Isolation</span></div>
+            <svg viewBox="0 0 1040 360" role="img" aria-labelledby="split-title">
+              <title id="split-title">数据集隔离</title>
+              <defs><marker id="split-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#111111"></path></marker></defs>
+              <rect width="1040" height="360" fill="#ffffff"></rect>
+              <g transform="translate(42 50)"><rect width="170" height="72" fill="#f7f7f8" stroke="#111111"></rect><text x="18" y="33" font-size="15" font-weight="800">raw labeled pool</text><text x="18" y="54" font-size="12" fill="#5f6570">logs / outcomes / labels</text></g>
+              <g transform="translate(300 22)"><rect width="154" height="62" fill="#f7f7f8" stroke="#111111"></rect><text x="22" y="35" font-size="15" font-weight="800">train_set</text></g>
+              <g transform="translate(300 104)"><rect width="154" height="62" fill="#f7f7f8" stroke="#111111"></rect><text x="22" y="35" font-size="15" font-weight="800">validation_set</text></g>
+              <g transform="translate(300 186)"><rect width="154" height="62" fill="#fff0f3" stroke="#e4002b"></rect><text x="22" y="35" font-size="15" font-weight="800">regression_set</text></g>
+              <g transform="translate(300 268)"><rect width="154" height="62" fill="#f7f7f8" stroke="#111111"></rect><text x="22" y="35" font-size="15" font-weight="800">test_set</text></g>
+              <path d="M212 86 C250 80 256 52 300 52" stroke="#111111" fill="none" marker-end="url(#split-arrow)"></path>
+              <path d="M212 86 C250 90 256 134 300 134" stroke="#111111" fill="none" marker-end="url(#split-arrow)"></path>
+              <path d="M212 86 C250 110 256 216 300 216" stroke="#e4002b" stroke-width="1.8" fill="none" marker-end="url(#split-arrow)"></path>
+              <path d="M212 86 C250 130 256 298 300 298" stroke="#111111" fill="none" marker-end="url(#split-arrow)"></path>
+              <g transform="translate(560 88)"><rect width="180" height="76" fill="#f7f7f8" stroke="#111111"></rect><text x="22" y="34" font-size="15" font-weight="800">model fitting</text><text x="22" y="55" font-size="12" fill="#5f6570">train + validation only</text></g>
+              <g transform="translate(560 200)"><rect width="180" height="76" fill="#fff0f3" stroke="#e4002b"></rect><text x="22" y="34" font-size="15" font-weight="800">regression gate</text><text x="22" y="55" font-size="12" fill="#5f6570">no training</text></g>
+              <path d="M454 52 C500 52 516 126 560 126" stroke="#111111" fill="none" marker-end="url(#split-arrow)"></path>
+              <path d="M454 134 H560" stroke="#111111" fill="none" marker-end="url(#split-arrow)"></path>
+              <path d="M454 216 H560" stroke="#e4002b" stroke-width="1.8" fill="none" marker-end="url(#split-arrow)"></path>
+              <g transform="translate(820 142)"><rect width="158" height="78" fill="#f7f7f8" stroke="#111111"></rect><text x="26" y="35" font-size="15" font-weight="800">promotion</text><text x="26" y="56" font-size="12" fill="#5f6570">must pass both</text></g>
+              <path d="M740 126 C778 126 782 181 820 181" stroke="#111111" fill="none" marker-end="url(#split-arrow)"></path>
+              <path d="M740 238 C778 238 782 181 820 181" stroke="#e4002b" stroke-width="1.8" fill="none" marker-end="url(#split-arrow)"></path>
+            </svg>
+          </div>
+          <table>
+            <thead><tr><th>集合</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code>train_set</code></td><td>模型拟合与特征选择。</td></tr>
+              <tr><td><code>validation_set</code></td><td>early stopping、超参数选择、feature promotion。</td></tr>
+              <tr><td><code>regression_set</code></td><td>历史失败门禁，只做 gate。</td></tr>
+              <tr><td><code>test_set</code></td><td>低频最终冷启动评估。</td></tr>
+            </tbody>
+          </table>
+          <h3>硬规则</h3>
+          <ul>
+            <li>同一 <code>entity_id</code> 在有实体历史泄漏风险时不应跨 split。</li>
+            <li>排序任务同一 <code>group_id</code> 不能跨 split。</li>
+            <li>使用行为标签或实体历史时，同一 user/session/account 不应跨 split。</li>
+            <li>Temporal task 应按事件时间切分，而不是随机行 shuffle。</li>
+            <li>同一人工修复失败族不能拆到 train 和 regression。</li>
+            <li>同一次评估必须复用同一个 context snapshot。</li>
+          </ul>
+        </section>
+
+        <section id="regression-set">
+          <div class="section-head">
+            <div class="section-num">09</div>
+            <div>
+              <h2>回归集生命周期</h2>
+              <p class="lead">Regression set 应该小、硬、稳定。它是刹车系统，不是训练语料池。</p>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="box">
+              <h3>创建触发</h3>
+              <ul>
+                <li>生产事故由模型预测导致。</li>
+                <li>关键 false positive 或 false negative。</li>
+                <li>排序 must-include 掉出 topK，或 must-not-include 进入 topK。</li>
+                <li>回归预测超出可接受范围。</li>
+                <li>人工调查修复了一个失败模式。</li>
+                <li>高价值 golden case 发生回归。</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>生命周期</h3>
+              <pre><code>new_case
+  -> active regression gate
+  -> periodically reviewed for schema/data validity
+  -> either retained, retired, or generalized</code></pre>
+              <p>原始 regression case 默认不进训练。如果集合过大，把模式泛化成 generator。</p>
+            </div>
+          </div>
+          <pre><code>Raw case:
+  high-value fraudulent transaction was scored low because merchant velocity was missing
+
+Generalized training generator:
+  for high-value transactions, create hard positives with sparse merchant history and high velocity indicators</code></pre>
+        </section>
+
+        <section id="features">
+          <div class="section-head">
+            <div class="section-num">10</div>
+            <div>
+              <h2>特征体系</h2>
+              <p class="lead">框架层面 task-agnostic，配方层面 task-specific。</p>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="box"><h3>9.1 L0 Source Features</h3><div class="tag-row"><span class="tag">source_score</span><span class="tag">source_rank</span><span class="tag">retriever_score</span><span class="tag">baseline_model_score</span><span class="tag">raw_numeric_field</span><span class="tag">raw_categorical_field</span><span class="tag">existing_rule_score</span><span class="tag">candidate_count_for_group</span></div></div>
+            <div class="box"><h3>9.2 Entity Features</h3><div class="tag-row"><span class="tag">entity_age</span><span class="tag">entity_type</span><span class="tag">entity_status</span><span class="tag">source_type</span><span class="tag">category</span><span class="tag">region</span><span class="tag">device_type</span><span class="tag">account_tenure</span><span class="tag">document_length</span><span class="tag">transaction_amount</span></div></div>
+            <div class="box"><h3>9.3 Context Features</h3><div class="tag-row"><span class="tag">event_hour</span><span class="tag">event_day_of_week</span><span class="tag">seasonality_bucket</span><span class="tag">request_channel</span><span class="tag">query_type</span><span class="tag">market_condition</span><span class="tag">traffic_source</span><span class="tag">current_intent</span></div></div>
+            <div class="box"><h3>9.4 Interaction Features</h3><div class="tag-row"><span class="tag">query_document_overlap</span><span class="tag">user_item_affinity</span><span class="tag">merchant_velocity</span><span class="tag">account_device_match</span><span class="tag">price_to_category_median_ratio</span><span class="tag">current_value_vs_historical_average</span><span class="tag">entity_context_compatibility</span></div></div>
+            <div class="box"><h3>9.5 Temporal / Window Features</h3><div class="tag-row"><span class="tag">count_1h</span><span class="tag">count_24h</span><span class="tag">count_7d</span><span class="tag">rolling_mean_7d</span><span class="tag">rolling_std_30d</span><span class="tag">days_since_last_event</span><span class="tag">trend_slope</span><span class="tag">seasonal_deviation</span></div></div>
+            <div class="box accent"><h3>9.6 Evidence / Quality Features</h3><div class="tag-row"><span class="tag red">has_required_evidence</span><span class="tag red">entity_overlap_count</span><span class="tag red">date_overlap_count</span><span class="tag red">number_overlap_count</span><span class="tag red">field_completeness</span><span class="tag red">information_density</span><span class="tag red">measurement_quality</span><span class="tag red">source_reliability</span><span class="tag red">freshness_score</span></div></div>
+            <div class="box"><h3>9.7 Anti-Features</h3><div class="tag-row"><span class="tag">duplicate_score</span><span class="tag">boilerplate_score</span><span class="tag">stale_version_flag</span><span class="tag">wrong_entity_flag</span><span class="tag">missing_required_field_flag</span><span class="tag">low_information_density_flag</span><span class="tag">outlier_flag</span><span class="tag">known_bad_source_flag</span><span class="tag">conflicting_signal_flag</span></div></div>
+            <div class="box"><h3>9.8 Ranking Candidate-Context</h3><div class="tag-row"><span class="tag">score_gap_to_top</span><span class="tag">semantic_redundancy_with_higher_ranked_items</span><span class="tag">source_diversity_score</span><span class="tag">same_parent_as_higher_ranked_candidate</span><span class="tag">best_candidate_in_parent_flag</span></div></div>
+          </div>
+        </section>
+
+        <section id="initial-features">
+          <div class="section-head">
+            <div class="section-num">11</div>
+            <div>
+              <h2>V0 特征集</h2>
+              <p class="lead">每个 task profile 从 20 到 40 个稳定特征开始，不要一开始堆几百个。</p>
+            </div>
+          </div>
+          <div class="grid-3">
+            <div class="box">
+              <h3>通用类别</h3>
+              <ul>
+                <li>L0 upstream scores and ranks</li>
+                <li>raw numeric / categorical fields</li>
+                <li>entity age and status</li>
+                <li>context timestamp features</li>
+                <li>missing indicators</li>
+                <li>basic count/window features</li>
+                <li>basic interaction ratios</li>
+                <li>source reliability/freshness</li>
+                <li>duplicate or stale flags</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>Ranking V0</h3>
+              <pre><code>dense_score
+sparse_score
+dense_rank
+sparse_rank
+rrf_score
+exact_term_overlap_ratio
+entity_overlap_count
+date_overlap_count
+duplicate_score
+wrong_date_flag</code></pre>
+            </div>
+            <div class="box">
+              <h3>Binary Classification V0</h3>
+              <pre><code>baseline_rule_score
+amount
+account_age_days
+event_hour
+merchant_country
+device_country
+country_mismatch_flag
+merchant_velocity_24h
+user_velocity_24h
+days_since_last_transaction
+missing_device_flag</code></pre>
+            </div>
+            <div class="box">
+              <h3>Regression V0</h3>
+              <pre><code>baseline_prediction
+entity_age
+category
+region
+seasonality_bucket
+rolling_mean_7d
+rolling_mean_30d
+trend_slope
+price_to_category_median_ratio
+missing_history_flag</code></pre>
+            </div>
+          </div>
+        </section>
+
+        <section id="hard-examples">
+          <div class="section-head">
+            <div class="section-num">12</div>
+            <div>
+              <h2>Hard Example Types</h2>
+              <p class="lead">Hard examples 是逼模型学到关键差异的样本。每个 task 都应该显式定义。</p>
+            </div>
+          </div>
+          <div class="grid-3">
+            <div class="box">
+              <h3>Ranking</h3>
+              <ul>
+                <li><code>semantic_hard_negative</code></li>
+                <li><code>lexical_hard_negative</code></li>
+                <li><code>temporal_hard_negative</code></li>
+                <li><code>entity_hard_negative</code></li>
+                <li><code>duplicate_negative</code></li>
+                <li><code>stale_version_negative</code></li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>Classification</h3>
+              <ul>
+                <li><code>hard_positive</code>: positive label 但 baseline 低分。</li>
+                <li><code>hard_negative</code>: negative label 但 baseline 高分。</li>
+                <li><code>near_boundary_case</code>: 接近阈值。</li>
+                <li><code>rare_class_case</code>: 低频类别或分群。</li>
+                <li><code>costly_false_negative</code></li>
+                <li><code>costly_false_positive</code></li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>Regression</h3>
+              <ul>
+                <li><code>large_residual_case</code></li>
+                <li><code>tail_value_case</code></li>
+                <li><code>segment_bias_case</code></li>
+                <li><code>drift_case</code></li>
+                <li><code>calibration_bucket_failure</code></li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="training">
+          <div class="section-head">
+            <div class="section-num">13</div>
+            <div>
+              <h2>模型训练</h2>
+              <p class="lead">训练配置由 task profile 选择。模型 artifact 必须保存 task profile、feature config、snapshot ID 和 evaluation report。</p>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="box">
+              <h3>Generic</h3>
+              <pre><code>model:
+  type: xgboost
+  task_profile: fraud_binary_classification
+  objective: binary:logistic
+  eval_metric:
+    - aucpr
+    - logloss
+  tree_method: hist
+  early_stopping_rounds: 100
+  feature_set_version: features_v12
+  training_snapshot_id: train_2026_06_26_0001</code></pre>
+            </div>
+            <div class="box">
+              <h3>Ranking</h3>
+              <pre><code>model:
+  type: xgboost_ranker
+  objective: rank:ndcg
+  eval_metric:
+    - ndcg@5
+    - ndcg@10
+  group_key: group_id
+  tree_method: hist
+  early_stopping_rounds: 100</code></pre>
+            </div>
+            <div class="box">
+              <h3>Classification</h3>
+              <pre><code>model:
+  type: xgboost_classifier
+  objective: binary:logistic
+  eval_metric:
+    - aucpr
+    - logloss
+  class_weighting:
+    mode: scale_pos_weight
+  threshold_selection:
+    metric: recall_at_precision
+    min_precision: 0.95</code></pre>
+            </div>
+            <div class="box">
+              <h3>Regression</h3>
+              <pre><code>model:
+  type: xgboost_regressor
+  objective: reg:squarederror
+  eval_metric:
+    - rmse
+    - mae
+  target_transform:
+    type: log1p
+    inverse: expm1</code></pre>
+            </div>
+          </div>
+          <ul>
+            <li>Ranking tasks 必须按 <code>group_id</code> 分组。</li>
+            <li>Classification tasks 必须把 threshold policy 和模型分数分开记录。</li>
+            <li>Regression tasks 必须记录 target transform 和 inverse transform。</li>
+            <li>Temporal tasks 应用未来时间段验证。</li>
+          </ul>
+          <div class="grid-2">
+            <div class="box accent">
+              <h3>AutoML / HPO 分工</h3>
+              <p>LLM 负责从失败样本、残差、hard examples 和弱切片中提出 <code>FeatureRecipe</code> 假设；AutoML/HPO 负责在固定特征集上搜索 XGBoost 参数。不要自己实现 TPE、Bayesian search、ASHA/HyperBand、trial pruning 或分布式 trial 调度。</p>
+              <ul>
+                <li><code>Optuna</code>: V0 默认选择，适合框架自己掌控 snapshot、ablation、gate、report 和 XGBoost objective。</li>
+                <li><code>FLAML</code>: 适合快速、预算敏感的 baseline。</li>
+                <li><code>Ray Tune</code>: 适合大量 trial、分布式执行、ASHA/HyperBand 或集群调度。</li>
+                <li><code>AutoGluon</code>: 适合作为强 tabular AutoML 对照组；如果系统要保持 XGBoost-only 和 FeatureRecipe-driven，不建议作为核心引擎。</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>HPOEngine Adapter</h3>
+              <pre><code>class HPOEngine:
+    def optimize(
+        self,
+        task_profile,
+        feature_set,
+        train_snapshot,
+        valid_snapshot,
+        budget,
+    ) -> TrialResult:
+        ...</code></pre>
+              <p>常见搜索维度：<code>max_depth</code>、<code>min_child_weight</code>、<code>eta</code>、<code>num_boost_round</code>、<code>subsample</code>、<code>colsample_*</code>、<code>gamma</code>、<code>reg_alpha</code>、<code>reg_lambda</code>、<code>max_bin</code>、<code>scale_pos_weight</code>、<code>early_stopping_rounds</code>。</p>
+            </div>
+          </div>
+          <h3>框架自己实现的治理层</h3>
+          <p>不要重写 AutoML 搜索算法，但要自己实现实验治理和上线门禁。外部 HPO 工具只负责在固定特征集、固定 snapshot 和固定 budget 下给出候选参数。</p>
+          <table>
+            <thead><tr><th>组件</th><th>职责</th></tr></thead>
+            <tbody>
+              <tr><td><code>ExperimentRunner</code></td><td>管理 trial 生命周期、随机种子、预算、artifact 和可复现性。</td></tr>
+              <tr><td><code>FeatureRecipeRegistry</code></td><td>校验特征定义、版本、online-safe 标记和 leakage risk。</td></tr>
+              <tr><td><code>DatasetSnapshotManager</code></td><td>冻结 train、validation、test、regression snapshots。</td></tr>
+              <tr><td><code>AblationPlanner</code></td><td>构造 A/B/C/D 消融实验，控制 baseline 与 candidate 的 HPO 预算公平。</td></tr>
+              <tr><td><code>RegressionGate</code></td><td>运行历史失败 case，但不把 regression cases 直接放入训练。</td></tr>
+              <tr><td><code>SliceEvaluator</code></td><td>报告弱切片、hard examples 和任务成本指标。</td></tr>
+              <tr><td><code>PromotionGate</code></td><td>合并 global、slice、regression、latency、reliability 门禁。</td></tr>
+              <tr><td><code>FeatureMemoryStore</code></td><td>记录 promoted、rejected、quarantined 特征想法和参数先验。</td></tr>
+              <tr><td><code>ReportGenerator</code></td><td>生成面向人和 AI agent 的 experiment card。</td></tr>
+            </tbody>
+          </table>
+          <div class="note">
+            不要给每个 LLM 新特征都跑完整 HPO。先用 scout 阶段的小预算或固定强参数筛掉弱特征，只对 finalist 特征跑完整 HPO 和 promotion gate。
+          </div>
+          <h3>推荐落地组合</h3>
+          <table>
+            <thead><tr><th>层级</th><th>默认选择</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>核心模型</td><td><code>XGBoost / XGBClassifier / XGBRegressor / XGBRanker</code></td><td>由 <code>task_profile.task_type</code> 和 objective 决定具体 estimator。</td></tr>
+              <tr><td>HPO 引擎</td><td><code>Optuna</code></td><td>作为默认 <code>HPOEngine</code> adapter；<code>FLAML</code> 可做快速预算敏感 baseline，<code>Ray Tune</code> 只在需要分布式 trial 时引入。</td></tr>
+              <tr><td>AutoML 对照</td><td><code>AutoGluon</code></td><td>适合作为强 tabular AutoML challenger，不作为核心引擎。</td></tr>
+              <tr><td>特征发现</td><td>LLM + 自有 <code>FeatureRecipeRegistry</code></td><td>LLM 从 failures、residuals、hard examples、weak slices、regression cases 中提出特征；registry、泄漏检查、online-safe、feature memory、promotion decisions 由本框架掌控。</td></tr>
+              <tr><td>离线候选生成</td><td><code>Featuretools / OpenFE / tsfresh / autofeat</code></td><td>可选引入；外部生成器必须输出 <code>FeatureRecipe</code>-compatible candidates 后才能进入训练。</td></tr>
+              <tr><td>评测和门禁</td><td>自有 <code>RegressionGate / SliceEvaluator / PromotionGate</code></td><td>领域 evaluator 可以作为 judge 插件，但不能替代固定 snapshots、split isolation 和 regression gates。</td></tr>
+              <tr><td>Serving 参考</td><td>OpenSearch LTR / Elasticsearch LTR / Metarank / Vespa</td><td>适合作为 ranking-oriented serving 参考；如果会隐藏特征治理、A/B/C/D 消融、HPO 预算公平或回归门禁，不要作为核心框架。</td></tr>
+            </tbody>
+          </table>
+          <pre><code>Default V0 stack:
+  XGBoost estimator selected by task profile
+  + Optuna HPOEngine
+  + self-owned FeatureRecipeRegistry
+  + self-owned DatasetSnapshotManager
+  + self-owned A/B/C/D AblationPlanner
+  + self-owned RegressionGate, SliceEvaluator, and PromotionGate
+  + optional Featuretools/OpenFE/tsfresh/autofeat candidate generation
+  + optional task-specific external evaluators</code></pre>
+        </section>
+
+        <section id="evaluation">
+          <div class="section-head">
+            <div class="section-num">14</div>
+            <div>
+              <h2>评测指标</h2>
+              <p class="lead">每个 task profile 必须声明主指标、辅助指标和 slices。评测必须同时看 global、slice、hard example 和 feature health。</p>
+            </div>
+          </div>
+          <div class="grid-3">
+            <div class="box"><h3>Ranking</h3><div class="tag-row"><span class="tag">nDCG@5</span><span class="tag">nDCG@10</span><span class="tag">MAP@k</span><span class="tag">MRR@10</span><span class="tag">Recall@k</span><span class="tag">BadEntity@k</span></div></div>
+            <div class="box"><h3>Classification</h3><div class="tag-row"><span class="tag">PR-AUC</span><span class="tag">ROC-AUC</span><span class="tag">logloss</span><span class="tag">F1</span><span class="tag">precision@threshold</span><span class="tag">recall@threshold</span><span class="tag">calibration error</span></div></div>
+            <div class="box"><h3>Multi-Class</h3><div class="tag-row"><span class="tag">accuracy</span><span class="tag">macro_f1</span><span class="tag">micro_f1</span><span class="tag">per_class_precision</span><span class="tag">per_class_recall</span><span class="tag">confusion_matrix</span><span class="tag">top_k_accuracy</span><span class="tag">logloss</span></div></div>
+            <div class="box"><h3>Regression</h3><div class="tag-row"><span class="tag">RMSE</span><span class="tag">MAE</span><span class="tag">MAPE</span><span class="tag">SMAPE</span><span class="tag">median_absolute_error</span><span class="tag">pinball_loss</span><span class="tag">residual_bias_by_slice</span><span class="tag">prediction_interval_coverage</span></div></div>
+            <div class="box"><h3>Feature Health</h3><div class="tag-row"><span class="tag">feature_missing_rate</span><span class="tag">feature_default_rate</span><span class="tag">feature_latency_p50_ms</span><span class="tag">feature_latency_p95_ms</span><span class="tag">feature_drift_score</span><span class="tag">feature_cardinality</span><span class="tag">feature_outlier_rate</span><span class="tag">training_serving_skew</span></div></div>
+            <div class="box"><h3>Slice Examples</h3><p>ranking: query_type/source_type。fraud: amount bucket/merchant age。churn: plan/tenure。regression: target bucket/category/geography。multi-class: class/source/language。</p></div>
+          </div>
+        </section>
+
+        <section id="gates">
+          <div class="section-head">
+            <div class="section-num">15</div>
+            <div>
+              <h2>Promotion Gates</h2>
+              <p class="lead">候选模型只有通过 task-specific gates 才能上线。全局指标提升不够，回归失败会阻止 promotion。</p>
+            </div>
+          </div>
+          <div class="diagram">
+            <div class="diagram-title"><span>SVG 流程图 C</span><span>Promotion Gate</span></div>
+            <svg viewBox="0 0 1060 360" role="img" aria-labelledby="gate-title">
+              <title id="gate-title">上线门禁</title>
+              <defs><marker id="gate-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#111111"></path></marker></defs>
+              <rect width="1060" height="360" fill="#ffffff"></rect>
+              <g transform="translate(44 140)"><rect width="150" height="70" fill="#f7f7f8" stroke="#111111"></rect><text x="18" y="32" font-size="15" font-weight="800">candidate</text><text x="18" y="52" font-size="12" fill="#5f6570">model + features</text></g>
+              <g transform="translate(270 36)"><rect width="150" height="64" fill="#f7f7f8" stroke="#111111"></rect><text x="20" y="35" font-size="15" font-weight="800">global</text></g>
+              <g transform="translate(270 126)"><rect width="150" height="64" fill="#fff0f3" stroke="#e4002b"></rect><text x="20" y="35" font-size="15" font-weight="800">regression</text></g>
+              <g transform="translate(270 216)"><rect width="150" height="64" fill="#f7f7f8" stroke="#111111"></rect><text x="20" y="35" font-size="15" font-weight="800">slices</text></g>
+              <g transform="translate(500 82)"><rect width="154" height="64" fill="#f7f7f8" stroke="#111111"></rect><text x="20" y="35" font-size="15" font-weight="800">latency</text></g>
+              <g transform="translate(500 190)"><rect width="154" height="64" fill="#f7f7f8" stroke="#111111"></rect><text x="20" y="35" font-size="15" font-weight="800">reliability</text></g>
+              <g transform="translate(740 132)"><rect width="150" height="82" fill="#fff0f3" stroke="#e4002b"></rect><text x="24" y="36" font-size="15" font-weight="800">shadow</text><text x="24" y="56" font-size="12" fill="#5f6570">backtest / A-B</text></g>
+              <g transform="translate(940 132)"><rect width="86" height="82" fill="#f7f7f8" stroke="#111111"></rect><text x="18" y="43" font-size="15" font-weight="800">ship</text></g>
+              <path d="M194 175 C232 175 230 68 270 68" stroke="#111111" fill="none" marker-end="url(#gate-arrow)"></path>
+              <path d="M194 175 H270" stroke="#e4002b" stroke-width="1.8" fill="none" marker-end="url(#gate-arrow)"></path>
+              <path d="M194 175 C232 175 230 248 270 248" stroke="#111111" fill="none" marker-end="url(#gate-arrow)"></path>
+              <path d="M420 68 C462 68 462 114 500 114" stroke="#111111" fill="none" marker-end="url(#gate-arrow)"></path>
+              <path d="M420 158 C462 158 462 114 500 114" stroke="#e4002b" stroke-width="1.8" fill="none" marker-end="url(#gate-arrow)"></path>
+              <path d="M420 248 C462 248 462 222 500 222" stroke="#111111" fill="none" marker-end="url(#gate-arrow)"></path>
+              <path d="M654 114 C696 114 698 173 740 173" stroke="#111111" fill="none" marker-end="url(#gate-arrow)"></path>
+              <path d="M654 222 C696 222 698 173 740 173" stroke="#111111" fill="none" marker-end="url(#gate-arrow)"></path>
+              <path d="M890 173 H940" stroke="#e4002b" stroke-width="1.8" fill="none" marker-end="url(#gate-arrow)"></path>
+            </svg>
+          </div>
+          <div class="grid-2">
+            <div class="box"><h3>Generic Gate</h3><pre><code>promotion_gate:
+  global:
+    primary_metric_min_delta: 0.002
+    secondary_metric_max_drop: 0.000
+  regression:
+    critical_case_failures_max: 0
+    golden_set_metric_drop_max: 0.000
+  slices:
+    max_allowed_primary_metric_drop: 0.010
+    critical_slice_max_allowed_drop: 0.000
+  latency:
+    feature_extraction_p95_ms_max: 20
+    model_inference_p95_ms_max: 5
+  reliability:
+    feature_missing_rate_max: 0.300
+    training_serving_skew_max: 0.010
+    online_safe_required: true</code></pre></div>
+            <div class="box"><h3>Task-Specific Examples</h3><ul>
+              <li>Ranking: <code>ndcg10_min_delta</code>, <code>must_include_recall_at_5_drop_max</code>。</li>
+              <li>Classification: <code>pr_auc_min_delta</code>, <code>critical_false_negative_increase_max</code>。</li>
+              <li>Regression: <code>mae_max_delta</code>, <code>max_abs_error_case_failures</code>。</li>
+            </ul></div>
+          </div>
+        </section>
+
+        <section id="discovery">
+          <div class="section-head">
+            <div class="section-num">16</div>
+            <div>
+              <h2>自动特征发现</h2>
+              <p class="lead">自动特征发现从 failure cluster 或 underperforming slice 开始。LLM 可以提假设，但不能跳过验证。</p>
+            </div>
+          </div>
+          <div class="diagram">
+            <div class="diagram-title"><span>SVG 流程图 D</span><span>Feature Discovery Loop</span></div>
+            <svg viewBox="0 0 1100 500" role="img" aria-labelledby="discovery-title">
+              <title id="discovery-title">自动特征发现闭环</title>
+              <defs><marker id="disc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#111111"></path></marker></defs>
+              <rect width="1100" height="500" fill="#ffffff"></rect>
+              <g transform="translate(70 60)"><rect width="170" height="74" fill="#f7f7f8" stroke="#111111"></rect><text x="18" y="32" font-size="15" font-weight="800">failure cluster</text><text x="18" y="53" font-size="12" fill="#5f6570">case / slice</text></g>
+              <g transform="translate(330 60)"><rect width="180" height="74" fill="#f7f7f8" stroke="#111111"></rect><text x="18" y="32" font-size="15" font-weight="800">compare examples</text><text x="18" y="53" font-size="12" fill="#5f6570">handled vs failed</text></g>
+              <g transform="translate(610 60)"><rect width="170" height="74" fill="#fff0f3" stroke="#e4002b"></rect><text x="18" y="32" font-size="15" font-weight="800">hypothesis</text><text x="18" y="53" font-size="12" fill="#5f6570">new feature idea</text></g>
+              <g transform="translate(860 60)"><rect width="170" height="74" fill="#f7f7f8" stroke="#111111"></rect><text x="18" y="32" font-size="15" font-weight="800">FeatureRecipe</text><text x="18" y="53" font-size="12" fill="#5f6570">DSL / registry</text></g>
+              <g transform="translate(860 222)"><rect width="170" height="74" fill="#f7f7f8" stroke="#111111"></rect><text x="18" y="32" font-size="15" font-weight="800">offline compute</text><text x="18" y="53" font-size="12" fill="#5f6570">feature matrix</text></g>
+              <g transform="translate(610 222)"><rect width="170" height="74" fill="#f7f7f8" stroke="#111111"></rect><text x="18" y="32" font-size="15" font-weight="800">ablation</text><text x="18" y="53" font-size="12" fill="#5f6570">baseline vs +feature</text></g>
+              <g transform="translate(330 222)"><rect width="180" height="74" fill="#fff0f3" stroke="#e4002b"></rect><text x="18" y="32" font-size="15" font-weight="800">gates</text><text x="18" y="53" font-size="12" fill="#5f6570">global / slice / reg</text></g>
+              <g transform="translate(70 222)"><rect width="170" height="74" fill="#f7f7f8" stroke="#111111"></rect><text x="18" y="32" font-size="15" font-weight="800">decision</text><text x="18" y="53" font-size="12" fill="#5f6570">promote / reject</text></g>
+              <g transform="translate(398 380)"><rect width="300" height="74" fill="#f7f7f8" stroke="#111111"></rect><text x="22" y="32" font-size="15" font-weight="800">feature memory</text><text x="22" y="53" font-size="12" fill="#5f6570">promoted / rejected / quarantined</text></g>
+              <path d="M240 97 H330" stroke="#111111" fill="none" marker-end="url(#disc-arrow)"></path>
+              <path d="M510 97 H610" stroke="#111111" fill="none" marker-end="url(#disc-arrow)"></path>
+              <path d="M780 97 H860" stroke="#e4002b" stroke-width="1.8" fill="none" marker-end="url(#disc-arrow)"></path>
+              <path d="M945 134 V222" stroke="#111111" fill="none" marker-end="url(#disc-arrow)"></path>
+              <path d="M860 259 H780" stroke="#111111" fill="none" marker-end="url(#disc-arrow)"></path>
+              <path d="M610 259 H510" stroke="#111111" fill="none" marker-end="url(#disc-arrow)"></path>
+              <path d="M330 259 H240" stroke="#e4002b" stroke-width="1.8" fill="none" marker-end="url(#disc-arrow)"></path>
+              <path d="M155 296 C155 420 318 417 398 417" stroke="#111111" fill="none" marker-end="url(#disc-arrow)"></path>
+              <path d="M698 417 C906 410 1030 330 1030 134" stroke="#111111" fill="none" marker-end="url(#disc-arrow)"></path>
+            </svg>
+          </div>
+          <h3>Discovery Inputs</h3>
+          <div class="tag-row">
+            <span class="tag">failed cases</span><span class="tag">positive and negative examples</span><span class="tag">large residual cases</span><span class="tag">near-threshold cases</span><span class="tag">slice-level regressions</span><span class="tag">task taxonomy</span><span class="tag">upstream scores/ranks/rules</span><span class="tag">verified outcomes</span><span class="tag">LLM judge labels</span><span class="tag">human annotations</span>
+          </div>
+          <ol>
+            <li>选择 failure cluster 或 underperforming slice。</li>
+            <li>比较正确处理样本和失败样本。</li>
+            <li>识别可区分差异。</li>
+            <li>生成 DSL 中的 candidate <code>FeatureRecipe</code>。</li>
+            <li>离线计算特征。</li>
+            <li>做 ablation：baseline features、baseline + candidate feature、baseline + candidate feature group。</li>
+            <li>评估 global、slice、regression、feature health 和 latency。</li>
+            <li>promote、reject 或 quarantine。</li>
+            <li>写入 feature memory。</li>
+          </ol>
+          <h3>Feature Discovery + HPO 公平对比</h3>
+          <p>LLM 新特征和 AutoML 调参必须拆开归因。每个候选特征至少比较四组：</p>
+          <table>
+            <thead>
+              <tr><th>实验格</th><th>含义</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>A</code></td><td>baseline features + baseline params</td></tr>
+              <tr><td><code>B</code></td><td>baseline features + tuned params</td></tr>
+              <tr><td><code>C</code></td><td>baseline + candidate feature + baseline params</td></tr>
+              <tr><td><code>D</code></td><td>baseline + candidate feature + tuned params</td></tr>
+            </tbody>
+          </table>
+          <div class="grid-2">
+            <div class="box">
+              <h3>归因方式</h3>
+              <ul>
+                <li><code>B - A</code>: 参数搜索收益。</li>
+                <li><code>C - A</code>: 特征本身收益。</li>
+                <li><code>D - B</code>: 调参后新特征仍然带来的收益。</li>
+                <li><code>D - C</code>: 调参对新特征的放大收益。</li>
+              </ul>
+            </div>
+            <div class="box accent">
+              <h3>Promotion 判断</h3>
+              <p>主要看 <code>D - B</code>，不是 <code>D - A</code>。否则系统会把参数搜索带来的提升错误归因给新特征。</p>
+              <p>baseline 和 candidate 必须使用相同 data snapshot、feature snapshot、split、metric、regression gate 和 HPO budget。</p>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="box"><h3>LLM 可以做</h3><ul><li>指出 failure cluster 需要 recency feature。</li><li>识别高价值 positive 被 sparse history 误伤。</li><li>建议 <code>merchant_velocity_24h</code> 或 <code>missing_history_flag</code>。</li></ul></div>
+            <div class="box accent"><h3>LLM 不能做</h3><ul><li>不能未经过预算和门禁就把 LLM online score 作为所有预测特征。</li><li>不能写没有 recipe entry 的散装特征代码。</li><li>不能把未来 outcome 或 post-decision signal 作为模型输入。</li></ul></div>
+          </div>
+          <pre><code>{
+  "feature_name": "merchant_velocity_24h",
+  "task_profile": "fraud_binary_classification",
+  "hypothesis": "High-value fraud misses often have abnormal merchant velocity.",
+  "source_failure_cases": ["reg_001", "reg_017"],
+  "expected_slices": ["high_value_transaction", "new_merchant"],
+  "ablation_result": {
+    "global_pr_auc_delta": 0.004,
+    "high_value_recall_delta": 0.021,
+    "false_positive_rate_delta": 0.002,
+    "regression_failures": 0,
+    "latency_p95_ms": 1.4
+  },
+  "decision": "promote_conditional",
+  "decision_reason": "Strong high-value recall gain with no regression failure."
+}</code></pre>
+        </section>
+
+        <section id="memory">
+          <div class="section-head"><div class="section-num">17</div><div><h2>特征记忆</h2><p class="lead">按 task profile 维护特征记忆，避免重复试弱想法。</p></div></div>
+          <div class="grid-4">
+            <div class="box"><h3><code>promoted_features.jsonl</code></h3><p>已通过门禁。</p></div>
+            <div class="box"><h3><code>rejected_features.jsonl</code></h3><p>明确失败并记录原因。</p></div>
+            <div class="box"><h3><code>quarantined_features.jsonl</code></h3><p>暂时隔离。</p></div>
+            <div class="box"><h3><code>feature_ablation_runs.jsonl</code></h3><p>所有消融实验。</p></div>
+          </div>
+          <pre><code>{
+  "feature_name": "entity_age_raw",
+  "task_profile": "churn_binary_classification",
+  "decision": "rejected",
+  "reason": "Improved global PR-AUC by 0.0003 but hurt new_user recall by 0.018.",
+  "date": "2026-06-26"
+}</code></pre>
+        </section>
+
+        <section id="serving">
+          <div class="section-head"><div class="section-num">18</div><div><h2>服务链路</h2><p class="lead">预测链路统一由 task profile 决定特征、模型、后处理和决策策略。</p></div></div>
+          <ol>
+            <li>Resolve task profile。</li>
+            <li>Fetch online-safe features 或 batch feature snapshot。</li>
+            <li>Apply model 使用的 <code>FeatureRecipe</code> versions。</li>
+            <li>Score with XGBoost model。</li>
+            <li>Apply optional post-processor：ranking diversity、classification threshold、regression clipping/calibration、decision policy。</li>
+            <li>Return prediction。</li>
+            <li>Log model version、feature hash、prediction、decision、later outcome、diagnostics。</li>
+          </ol>
+          <pre><code>{
+  "prediction_id": "pred_001",
+  "task_profile": "fraud_binary_classification",
+  "model_version": "fraud_xgb_2026_06_26_01",
+  "feature_set_version": "features_v12",
+  "data_snapshot_id": "data_live_2026_06_26",
+  "entity_id": "transaction_001",
+  "prediction": {
+    "score": 0.932,
+    "predicted_label": 1,
+    "threshold": 0.81
+  },
+  "decision": "manual_review",
+  "feature_hash": "abc123"
+}</code></pre>
+        </section>
+
+        <section id="rollout">
+          <div class="section-head"><div class="section-num">19</div><div><h2>Shadow / Backtest / A-B</h2><p class="lead">上线顺序是 offline pass、regression pass、backtest/shadow、有限 A/B 或 staged rollout、全量。</p></div></div>
+          <pre><code>offline pass
+  -> regression pass
+  -> backtest or shadow traffic
+  -> limited A/B or staged batch rollout
+  -> full rollout</code></pre>
+          <div class="grid-2">
+            <div class="box"><h3>Shadow / Backtest Metrics</h3><div class="tag-row"><span class="tag">prediction_delta_distribution</span><span class="tag">decision_delta_distribution</span><span class="tag">slice_metric_delta</span><span class="tag">regression_case_delta</span><span class="tag">latency_delta</span><span class="tag">feature_missing_delta</span><span class="tag">calibration_delta</span></div></div>
+            <div class="box"><h3>A/B Metrics By Task</h3><ul><li>Ranking: click/citation/usefulness/support rate。</li><li>Classification: precision/recall at operating point、manual review load、incident rate。</li><li>Regression: realized error、calibration、business loss、over/underprediction rate。</li></ul></div>
+          </div>
+        </section>
+
+        <section id="exploration">
+          <div class="section-head"><div class="section-num">20</div><div><h2>探索机制</h2><p class="lead">为避免反馈闭环，在风险允许的任务中保留受控探索。</p></div></div>
+          <div class="grid-3">
+            <div class="box"><h3>Ranking</h3><p>高位保守，低位探索高不确定性候选。</p></div>
+            <div class="box"><h3>Classification</h3><p>抽样 near-threshold cases 给人工 review，改善标签。</p></div>
+            <div class="box"><h3>Regression</h3><p>审计 high-uncertainty 或 tail predictions，为后续标签质量检查服务。</p></div>
+          </div>
+          <div class="note">探索候选必须打标，避免后续标签高估生产模型能力。</div>
+        </section>
+
+        <section id="explainability">
+          <div class="section-head"><div class="section-num">21</div><div><h2>可解释性</h2><p class="lead">每个 prediction 应该足够可解释，至少能用于 debugging。</p></div></div>
+          <pre><code>{
+  "entity_id": "transaction_001",
+  "prediction": 0.932,
+  "top_positive_features": [
+    ["merchant_velocity_24h", 0.31],
+    ["country_mismatch_flag", 0.24],
+    ["amount", 0.18]
+  ],
+  "top_negative_features": [
+    ["account_age_days", -0.09]
+  ],
+  "reason_template": "High score because merchant velocity, country mismatch, and amount are elevated."
+}</code></pre>
+          <p>离线可用 SHAP 或 model contribution APIs；线上解释可以是近似贡献和模板。</p>
+        </section>
+
+        <section id="repo">
+          <div class="section-head"><div class="section-num">22</div><div><h2>建议仓库结构</h2><p class="lead">目录按 task profile、features、labels、training、regression、serving 和 experiments 拆开。</p></div></div>
+          <pre><code>adaptive_xgb/
+  configs/
+    task_profiles/
+    feature_sets/
+    training/
+    promotion_gates/
+  data/
+    schemas/
+  features/
+    registry.py
+    primitives.py
+    extractors/
+  labels/
+    build_labels.py
+    weak_supervision.py
+    llm_judge.py
+  training/
+    build_dataset.py
+    train_xgb.py
+    evaluate.py
+  regression/
+    cases/
+    run_regression_gate.py
+  serving/
+    predict.py
+    postprocess.py
+    explain.py
+  experiments/
+    ablation.py
+    feature_discovery.py
+  docs/
+    ADAPTIVE_XGBOOST_HEURISTIC_SPEC.md
+    QD_RERANKER_SPEC.md</code></pre>
+        </section>
+
+        <section id="plan">
+          <div class="section-head"><div class="section-num">23</div><div><h2>最小实施计划</h2><p class="lead">先定义 task profiles 和 schemas，再做特征、训练、门禁和自动发现。</p></div></div>
+          <div class="grid-3">
+            <div class="box"><h3>Milestone 1</h3><p>定义 <code>LearningExample</code>、<code>PredictionContextSnapshot</code>、<code>RegressionCase</code>、<code>FeatureRecipe</code>；至少定义一个 ranking profile 和一个 classification 或 regression profile。</p></div>
+            <div class="box"><h3>Milestone 2</h3><p>实现 V0 feature registry，保存 feature matrix version，加 leakage checks、online-safe flags、feature health report。</p></div>
+            <div class="box"><h3>Milestone 3</h3><p>按 task-profile objective 训练 XGBoost，支持 ranking groups、classification threshold、regression target transform；增加 <code>HPOEngine</code> adapter，V0 默认用 <code>Optuna</code>，并先跑 tuned baseline 再归因新特征收益。</p></div>
+            <div class="box"><h3>Milestone 4</h3><p>挖掘 failed case clusters 和 underperforming slices，生成 <code>FeatureRecipe</code> candidates；用 scout-stage HPO 过滤弱特征，对 finalist 特征跑完整 HPO，并比较 A/B/C/D 消融实验。</p></div>
+            <div class="box"><h3>Milestone 5</h3><p>增加 prediction endpoint 或 batch scoring job，运行 shadow/backtest，加入 explanation output 和 staged rollout。</p></div>
+          </div>
+        </section>
+
+        <section id="checklist">
+          <div class="section-head"><div class="section-num">24</div><div><h2>AI Implementation Checklist</h2><p class="lead">给 AI agent 的实现顺序。</p></div></div>
+          <ol class="checklist">
+            <li>先创建 task profiles。</li>
+            <li>模型代码前先创建 schemas。</li>
+            <li>围绕固定 snapshots 构建 dataset builder。</li>
+            <li>通过 registry 实现 V0 features，不写散装特征代码。</li>
+            <li>用 task profile 的 objective 和 metrics 训练模型。</li>
+            <li>增加 HPO adapter，调用现有工具，不自己实现搜索算法。</li>
+            <li>自动特征发现前先加 validation 和 regression gates。</li>
+            <li>gates 存在后再加 feature discovery。</li>
+            <li>对新特征先比较 tuned baseline 和 tuned candidate，再决定 promotion。</li>
+            <li>A/B 或全量 batch rollout 前先做 shadow/backtest。</li>
+            <li>永远不要直接用 regression cases 训练。</li>
+            <li>永远不要把 post-outcome signals 作为线上模型特征。</li>
+            <li>始终按 slice 和 hard example type 报告指标。</li>
+          </ol>
+        </section>
+
+        <section id="decisions">
+          <div class="section-head"><div class="section-num">25</div><div><h2>待决问题</h2><p class="lead">实现前需要明确这些系统边界。</p></div></div>
+          <ul>
+            <li>V0 task profile 是 ranking、binary classification、multi-class classification，还是 regression？</li>
+            <li>主指标和 operating point 是什么？</li>
+            <li>critical slices 是哪些？</li>
+            <li>V0 HPO backend 选 <code>Optuna</code>、<code>FLAML</code>、<code>Ray Tune</code>，还是其他 adapter？</li>
+            <li>scout-stage 和 finalist-stage 的 HPO budget 各是多少？</li>
+            <li>哪些标签可信，哪些是弱标签，哪些只用于诊断？</li>
+            <li>今天是否已有 data snapshot 和 feature snapshot 系统？</li>
+            <li>延迟或 batch runtime 预算是多少？</li>
+            <li>entity IDs 和 versions 是否稳定？</li>
+            <li>任务是否需要 temporal splitting？</li>
+            <li>regression cases 如何创建、review 和 retire？</li>
+          </ul>
+        </section>
+
+        <section id="success">
+          <div class="section-head"><div class="section-num">26</div><div><h2>成功标准</h2><p class="lead">V0 成功不是模型能跑，而是它能稳定、可复现、可门禁、可解释地改进一个 task profile。</p></div></div>
+          <ul>
+            <li>至少一个 task profile 能从固定 snapshots 训练可复现 XGBoost 模型。</li>
+            <li>Candidate model 在 validation primary metric 上击败 task-specific baseline。</li>
+            <li>Golden/regression cases 不退化。</li>
+            <li>Feature extraction p95 latency 或 batch runtime 在预算内。</li>
+            <li>指标按 global、slice、hard example type 报告。</li>
+            <li>至少一个自动发现特征通过 ablation 和 gates 被 promote。</li>
+            <li>Debug output 能解释 prediction、rank 或 score 为什么变化。</li>
+          </ul>
+        </section>
+
+        <section id="qd-profile">
+          <div class="section-head"><div class="section-num">27</div><div><h2>Q-D Reranking 作为 Task Profile</h2><p class="lead">原 Q-D Reranker 是这个通用框架的一个 specialization。</p></div></div>
+          <pre><code>task_profile:
+  name: qd_reranking
+  task_type: ranking
+  entity_key: query_document_pair
+  group_key: query_id
+  objective: rank:ndcg
+  primary_metric: ndcg@10
+  secondary_metrics:
+    - mrr@10
+    - recall@5
+    - bad_entity@5
+  prediction_type: ranked_list
+  critical_slices:
+    - time_sensitive
+    - numeric
+    - troubleshooting</code></pre>
+          <table>
+            <thead><tr><th>Q-D 概念</th><th>通用框架映射</th></tr></thead>
+            <tbody>
+              <tr><td><code>QueryDocExample</code></td><td><code>LearningExample</code> with <code>group_id=query_id</code></td></tr>
+              <tr><td><code>CandidateSnapshot</code></td><td><code>PredictionContextSnapshot</code> with <code>context_type=ranking_candidates</code></td></tr>
+              <tr><td><code>must_include_doc_ids</code></td><td>ranking regression expected behavior</td></tr>
+              <tr><td><code>must_not_include_doc_ids</code></td><td>ranking regression expected behavior</td></tr>
+              <tr><td>answer citation labels</td><td><code>downstream_decision</code> or weak label source</td></tr>
+              <tr><td>LLM support judge</td><td><code>llm_judge_label</code>，永远不是 online feature</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <footer class="footer">
+        <p>源文件：ADAPTIVE_XGBOOST_HEURISTIC_SPEC.md。此 HTML 为自包含中文说明页，流程图均使用内联 SVG 绘制。</p>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

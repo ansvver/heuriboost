@@ -1,0 +1,2045 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Q-D Reranker 中文实现说明</title>
+  <style>
+    :root {
+      --surface: #ffffff;
+      --panel: #f7f7f8;
+      --panel-2: #ededf0;
+      --ink: #111111;
+      --muted: #5f6570;
+      --line: #d8dbe1;
+      --signal: #e4002b;
+      --signal-soft: #fff0f3;
+      --code: #f7f7f8;
+      --code-text: #111111;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--surface);
+    }
+
+    body {
+      margin: 0;
+      background: var(--surface);
+      color: var(--ink);
+      font-family: "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.55;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    a {
+      color: var(--ink);
+      text-decoration-color: var(--signal);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    .page {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 264px minmax(0, 1fr);
+      border-top: 1px solid var(--line);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      border-right: 1px solid var(--line);
+      background: var(--surface);
+      padding: 20px 16px;
+    }
+
+    .brand {
+      display: grid;
+      grid-template-columns: 42px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 16px;
+    }
+
+    .mark {
+      width: 42px;
+      height: 42px;
+      border: 1px solid var(--signal);
+      display: grid;
+      place-items: center;
+      color: var(--signal);
+      font-weight: 800;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.25;
+      font-weight: 800;
+    }
+
+    .brand p {
+      margin: 6px 0 0;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .toc {
+      display: grid;
+      gap: 0;
+      font-size: 12px;
+    }
+
+    .toc a {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .toc a:hover {
+      color: var(--ink);
+    }
+
+    main {
+      min-width: 0;
+      background: var(--surface);
+    }
+
+    .hero {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 40px 32px 0;
+      border-bottom: 1px solid var(--line);
+      display: block;
+    }
+
+    .hero-copy {
+      padding: 0;
+      display: block;
+      border-right: 0;
+    }
+
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--signal);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .hero h2 {
+      margin: 0;
+      font-size: clamp(30px, 4.2vw, 62px);
+      line-height: 1.08;
+      font-weight: 800;
+      max-width: 980px;
+      letter-spacing: 0;
+    }
+
+    .hero .summary {
+      margin: 18px 0 0;
+      max-width: 980px;
+      font-size: 15px;
+      line-height: 1.75;
+      color: var(--muted);
+    }
+
+    .meta-grid {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-top: 1px solid var(--line);
+      border-left: 1px solid var(--line);
+    }
+
+    .meta-item {
+      padding: 14px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      min-height: 78px;
+      background: var(--panel);
+    }
+
+    .meta-item strong {
+      display: block;
+      font-size: 12px;
+      color: var(--signal);
+      margin-bottom: 7px;
+    }
+
+    .meta-item span {
+      display: block;
+      font-size: 13px;
+      color: var(--ink);
+    }
+
+    .hero-diagram {
+      margin-top: 28px;
+      padding: 0;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      display: block;
+      overflow: hidden;
+    }
+
+    .content {
+      padding: 0 32px 72px;
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    section {
+      border-top: 1px solid var(--line);
+      padding: 34px 0 42px;
+    }
+
+    section:first-child {
+      border-top: 0;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .section-num {
+      color: var(--signal);
+      font-weight: 800;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(24px, 3vw, 38px);
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 26px 0 12px;
+      font-size: 18px;
+      line-height: 1.3;
+    }
+
+    h4 {
+      margin: 20px 0 10px;
+      font-size: 14px;
+      line-height: 1.3;
+      color: var(--signal);
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    .lead {
+      max-width: 900px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .grid-2,
+    .grid-3,
+    .grid-4 {
+      display: grid;
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .box {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 16px;
+      min-width: 0;
+    }
+
+    .box.accent {
+      border-color: var(--signal);
+      background: var(--signal-soft);
+    }
+
+    .box h3,
+    .box h4 {
+      margin-top: 0;
+    }
+
+    .box p:last-child,
+    .box ul:last-child,
+    .box ol:last-child,
+    .box pre:last-child {
+      margin-bottom: 0;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin: 12px 0 4px;
+    }
+
+    .tag {
+      border: 1px solid var(--line);
+      padding: 4px 7px;
+      font-size: 11px;
+      line-height: 1.25;
+      background: var(--surface);
+      color: var(--ink);
+    }
+
+    .tag.red {
+      color: var(--signal);
+      border-color: var(--signal);
+      background: var(--signal-soft);
+    }
+
+    ul,
+    ol {
+      padding-left: 22px;
+      margin: 10px 0 18px;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.92em;
+      background: var(--code);
+      border: 1px solid var(--line);
+      padding: 1px 4px;
+      color: var(--ink);
+    }
+
+    pre {
+      margin: 14px 0 20px;
+      padding: 16px;
+      overflow: auto;
+      background: var(--code);
+      color: var(--code-text);
+      border: 1px solid var(--line);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      color: inherit;
+      font-size: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 12px;
+    }
+
+    th,
+    td {
+      text-align: left;
+      vertical-align: top;
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+    }
+
+    th {
+      background: var(--panel-2);
+      color: var(--signal);
+      font-weight: 800;
+    }
+
+    .diagram {
+      border: 1px solid var(--line);
+      margin: 20px 0 28px;
+      background: var(--surface);
+      overflow-x: auto;
+    }
+
+    .diagram-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--line);
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--signal);
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-width: 0;
+      background: var(--surface);
+    }
+
+    .diagram svg {
+      min-width: 900px;
+    }
+
+    svg text,
+    svg .svg-title,
+    svg .svg-label,
+    svg .svg-small,
+    svg .a-title,
+    svg .a-label,
+    svg .a-small,
+    svg .s-label,
+    svg .s-small,
+    svg .s-no,
+    svg .g-label,
+    svg .g-small,
+    svg .g-redtext,
+    svg .d-label,
+    svg .d-small,
+    svg .d-redtext {
+      font-family: "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
+    }
+
+    svg .svg-title,
+    svg .svg-label,
+    svg .a-title,
+    svg .a-label,
+    svg .s-label,
+    svg .g-label,
+    svg .d-label {
+      fill: var(--ink) !important;
+    }
+
+    svg .svg-small,
+    svg .a-small,
+    svg .s-small,
+    svg .g-small,
+    svg .d-small {
+      fill: var(--muted) !important;
+    }
+
+    svg .svg-red,
+    svg .s-no,
+    svg .g-redtext,
+    svg .d-redtext {
+      fill: var(--signal) !important;
+    }
+
+    svg .svg-box,
+    svg .a-box,
+    svg .s-box,
+    svg .g-box,
+    svg .d-box {
+      fill: var(--surface) !important;
+      stroke: var(--line) !important;
+    }
+
+    svg .svg-soft,
+    svg .a-redbox,
+    svg .s-red,
+    svg .g-red,
+    svg .d-redbox {
+      fill: var(--signal-soft) !important;
+      stroke: var(--signal) !important;
+    }
+
+    svg .svg-line,
+    svg .a-line,
+    svg .s-line,
+    svg .g-line,
+    svg .d-line {
+      stroke: var(--muted) !important;
+    }
+
+    svg .svg-line-red,
+    svg .a-rline,
+    svg .g-rline,
+    svg .d-rline {
+      stroke: var(--signal) !important;
+    }
+
+    svg .svg-grid {
+      stroke: var(--line) !important;
+    }
+
+    svg rect[fill="#fff"],
+    svg rect[fill="#ffffff"],
+    svg rect[fill="#FFF"],
+    svg rect[fill="#FFFFFF"],
+    svg rect[fill="#f7f7f8"] {
+      fill: var(--surface) !important;
+    }
+
+    svg line[stroke="#111"],
+    svg line[stroke="#111111"],
+    svg path[stroke="#111"] {
+      stroke: var(--line) !important;
+    }
+
+    svg marker path {
+      fill: var(--muted) !important;
+    }
+
+    svg marker[id*="red"] path,
+    svg marker[id*="Red"] path,
+    svg marker[id*="a-red"] path,
+    svg marker[id*="d-red"] path,
+    svg marker[id*="gate-arrow-red"] path {
+      fill: var(--signal) !important;
+    }
+
+    .note {
+      border-left: 4px solid var(--signal);
+      padding: 10px 14px;
+      background: var(--signal-soft);
+      margin: 16px 0;
+    }
+
+    .checklist {
+      counter-reset: step;
+      padding-left: 0;
+      list-style: none;
+    }
+
+    .checklist li {
+      counter-increment: step;
+      border-top: 1px solid var(--line);
+      padding: 12px 0 12px 44px;
+      position: relative;
+      margin: 0;
+    }
+
+    .checklist li::before {
+      content: counter(step, decimal-leading-zero);
+      position: absolute;
+      left: 0;
+      top: 12px;
+      color: var(--signal);
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .footer {
+      border-top: 1px solid var(--line);
+      padding: 24px 32px;
+      color: var(--muted);
+      font-size: 12px;
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 980px) {
+      .page {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .toc {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 18px;
+      }
+
+      .hero {
+        padding: 28px 18px 0;
+      }
+
+      .content {
+        padding: 0 18px 56px;
+      }
+
+      .grid-2,
+      .grid-3,
+      .grid-4 {
+        grid-template-columns: 1fr;
+      }
+
+      .meta-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .section-head {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .toc {
+        grid-template-columns: 1fr;
+      }
+
+      .hero h2 {
+        font-size: 30px;
+      }
+
+      .hero .summary {
+        font-size: 13px;
+      }
+
+      .diagram svg {
+        min-width: 760px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">QD</div>
+        <div>
+          <h1>Q-D Reranker<br>中文实现说明</h1>
+          <p>基于 QD_RERANKER_SPEC.md，生成于 2026-06-26</p>
+        </div>
+      </div>
+      <nav class="toc" aria-label="目录">
+        <a href="#goal">目标</a>
+        <a href="#principles">核心原则</a>
+        <a href="#architecture">系统流程</a>
+        <a href="#non-goals">V0 非目标</a>
+        <a href="#schemas">数据模型</a>
+        <a href="#labels">标签构建</a>
+        <a href="#splits">数据集隔离</a>
+        <a href="#regression">回归集生命周期</a>
+        <a href="#features">特征体系</a>
+        <a href="#negatives">Hard Negative</a>
+        <a href="#training">模型训练</a>
+        <a href="#evaluation">评测指标</a>
+        <a href="#gates">上线门禁</a>
+        <a href="#discovery">自动特征发现</a>
+        <a href="#memory">特征记忆</a>
+        <a href="#serving">在线服务</a>
+        <a href="#rollout">Shadow 与 A/B</a>
+        <a href="#exploration">探索机制</a>
+        <a href="#explainability">可解释性</a>
+        <a href="#repo">仓库结构</a>
+        <a href="#plan">实施计划</a>
+        <a href="#checklist">AI Checklist</a>
+        <a href="#decisions">待决问题</a>
+        <a href="#success">成功标准</a>
+      </nav>
+    </aside>
+
+    <main>
+      <header class="hero">
+        <div class="hero-copy">
+          <div>
+            <p class="eyebrow">RAG Retrieval Reranking · Learning To Rank · Heuristic Feature Discovery</p>
+            <h2>让召回结果变成可回答证据</h2>
+            <p class="summary">
+              这份说明把 Q-D Reranker Spec 翻译成中文工程蓝图。核心任务不是判断文档是否“主题相似”，而是学习每个 query-document pair 是否能支撑最终答案，并通过特征、排序模型、回归集和上线门禁形成持续进化的 rerank 系统。
+            </p>
+          </div>
+          <div class="meta-grid" aria-label="文档元信息">
+            <div class="meta-item">
+              <strong>状态</strong>
+              <span>Draft</span>
+            </div>
+            <div class="meta-item">
+              <strong>适用范围</strong>
+              <span>RAG 检索模块后的文档重排</span>
+            </div>
+            <div class="meta-item">
+              <strong>核心模型</strong>
+              <span>XGBoost LambdaMART / rank:ndcg</span>
+            </div>
+          </div>
+        </div>
+        <div class="hero-diagram">
+          <svg viewBox="0 0 760 560" role="img" aria-labelledby="hero-title hero-desc">
+            <title id="hero-title">Q-D Reranker 总览</title>
+            <desc id="hero-desc">从 Query 到 Retriever、Reranker、Evidence 和 Generator 的高层流程图。</desc>
+            <defs>
+              <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#e4002b"></path>
+              </marker>
+              <marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#111111"></path>
+              </marker>
+              <style>
+                .svg-title { font: 800 24px Helvetica, Arial, sans-serif; fill: #111; }
+                .svg-label { font: 700 17px Helvetica, Arial, sans-serif; fill: #111; }
+                .svg-small { font: 400 13px Helvetica, Arial, sans-serif; fill: #5d626b; }
+                .svg-red { fill: #e4002b; }
+                .svg-box { fill: #fff; stroke: #111; stroke-width: 1; }
+                .svg-soft { fill: #fff0f3; stroke: #e4002b; stroke-width: 1; }
+                .svg-line { stroke: #111; stroke-width: 1.5; fill: none; marker-end: url(#arrow-black); }
+                .svg-line-red { stroke: #e4002b; stroke-width: 2; fill: none; marker-end: url(#arrow-red); }
+                .svg-grid { stroke: #d9dce1; stroke-width: 1; }
+              </style>
+            </defs>
+            <rect x="0" y="0" width="760" height="560" fill="#f7f7f8"></rect>
+            <path d="M40 40 H720 M40 120 H720 M40 200 H720 M40 280 H720 M40 360 H720 M40 440 H720 M40 520 H720 M40 40 V520 M160 40 V520 M280 40 V520 M400 40 V520 M520 40 V520 M640 40 V520" class="svg-grid"></path>
+            <text x="40" y="76" class="svg-title">Q-D Reranker</text>
+            <text x="40" y="104" class="svg-small">召回别漏，重排找证据，生成只吃高质量 topK。</text>
+
+            <rect x="64" y="160" width="132" height="72" class="svg-box"></rect>
+            <text x="82" y="193" class="svg-label">Query</text>
+            <text x="82" y="214" class="svg-small">意图 / 时间 / 实体</text>
+
+            <rect x="246" y="160" width="148" height="72" class="svg-box"></rect>
+            <text x="264" y="193" class="svg-label">Retriever</text>
+            <text x="264" y="214" class="svg-small">dense / sparse / hybrid</text>
+
+            <rect x="444" y="140" width="170" height="112" class="svg-soft"></rect>
+            <text x="462" y="176" class="svg-label">Q-D Reranker</text>
+            <text x="462" y="198" class="svg-small">XGBoost rank:ndcg</text>
+            <text x="462" y="218" class="svg-small">L0-L2 online features</text>
+
+            <rect x="226" y="332" width="154" height="72" class="svg-box"></rect>
+            <text x="244" y="365" class="svg-label">Feature DSL</text>
+            <text x="244" y="386" class="svg-small">可验证特征配方</text>
+
+            <rect x="444" y="332" width="170" height="72" class="svg-box"></rect>
+            <text x="462" y="365" class="svg-label">TopK Evidence</text>
+            <text x="462" y="386" class="svg-small">支撑答案的文档</text>
+
+            <path d="M196 196 H246" class="svg-line"></path>
+            <path d="M394 196 H444" class="svg-line-red"></path>
+            <path d="M529 252 V332" class="svg-line"></path>
+            <path d="M303 332 V272 C303 244 380 238 444 218" class="svg-line"></path>
+            <path d="M614 196 H690 V368 H614" class="svg-line"></path>
+            <text x="650" y="342" class="svg-small">feedback logs</text>
+            <text x="462" y="468" class="svg-red" style="font: 900 42px Helvetica, Arial, sans-serif;">不是相似度排序</text>
+            <text x="462" y="502" class="svg-small">而是 answer-supporting evidence ranking</text>
+          </svg>
+        </div>
+      </header>
+
+      <div class="content">
+        <section id="goal">
+          <div class="section-head">
+            <div class="section-num">01</div>
+            <div>
+              <h2>目标</h2>
+              <p class="lead">构建一个面向 RAG 的 query-document reranker，学习召回文档是否能实际支撑答案，而不是只学习主题或语义相似。</p>
+            </div>
+          </div>
+          <div class="grid-3">
+            <div class="box">
+              <h3>Retriever</h3>
+              <p>第一阶段召回负责高召回率。它的责任是“别漏”，可以接受 topN 中混入一些噪声。</p>
+            </div>
+            <div class="box accent">
+              <h3>Q-D Reranker</h3>
+              <p>重排器在同一个 query 的候选文档之间竞争排序，把真正能支撑答案的证据提上来，把误导性的 hard negative 压下去。</p>
+            </div>
+            <div class="box">
+              <h3>Generator</h3>
+              <p>生成器只消费重排后的 topK evidence documents，减少无证据回答、错误引用和追问率。</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="principles">
+          <div class="section-head">
+            <div class="section-num">02</div>
+            <div>
+              <h2>核心原则</h2>
+              <p class="lead">这些规则是系统边界。后续自动特征发现、模型训练和上线评估都不能绕开。</p>
+            </div>
+          </div>
+          <ol class="checklist">
+            <li><strong>Candidate snapshots 固定。</strong>训练和评估必须比较同一批召回候选，否则无法判断提升来自 reranker 还是 retriever 变化。</li>
+            <li><strong>训练、验证、回归、测试硬隔离。</strong>回归集是门禁，不是训练材料。</li>
+            <li><strong>特征必须在生成前线上可计算。</strong>答案引用、LLM post-hoc judge、点击、人工标签只能做 label 或诊断，不能作为模型输入。</li>
+            <li><strong>优化 answer evidence，不优化主题相似。</strong>同主题但时间错、实体错、版本错、没有证据，都是负例。</li>
+            <li><strong>新特征是实验对象。</strong>必须经过 ablation、slice evaluation、延迟检查、泄漏检查和 promote/reject 决策。</li>
+            <li><strong>每个已修复失败都进入回归集。</strong>系统不能反复犯同一个错误。</li>
+          </ol>
+        </section>
+
+        <section id="architecture">
+          <div class="section-head">
+            <div class="section-num">03</div>
+            <div>
+              <h2>系统流程</h2>
+              <p class="lead">系统有两条链路：在线链路负责服务请求，离线链路负责训练、评测、回归和发布。</p>
+            </div>
+          </div>
+
+          <div class="diagram">
+            <div class="diagram-title"><span>SVG 流程图 A</span><span>Online Path / Offline Path</span></div>
+            <svg viewBox="0 0 1180 520" role="img" aria-labelledby="flow-a-title">
+              <title id="flow-a-title">在线与离线流程</title>
+              <defs>
+                <marker id="a-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 z" fill="#e4002b"></path>
+                </marker>
+                <marker id="a-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 z" fill="#111111"></path>
+                </marker>
+                <style>
+                  .a-title { font: 800 21px Helvetica, Arial, sans-serif; fill: #111; }
+                  .a-label { font: 700 15px Helvetica, Arial, sans-serif; fill: #111; }
+                  .a-small { font: 400 12px Helvetica, Arial, sans-serif; fill: #5d626b; }
+                  .a-box { fill: #fff; stroke: #111; stroke-width: 1; }
+                  .a-redbox { fill: #fff0f3; stroke: #e4002b; stroke-width: 1.2; }
+                  .a-line { stroke: #111; stroke-width: 1.4; fill: none; marker-end: url(#a-black); }
+                  .a-rline { stroke: #e4002b; stroke-width: 1.8; fill: none; marker-end: url(#a-red); }
+                </style>
+              </defs>
+              <rect width="1180" height="520" fill="#fff"></rect>
+              <line x1="40" y1="250" x2="1140" y2="250" stroke="#111" stroke-width="1"></line>
+              <text x="40" y="46" class="a-title">在线服务链路</text>
+              <text x="40" y="296" class="a-title">离线学习链路</text>
+
+              <g transform="translate(40 82)">
+                <rect width="120" height="64" class="a-box"></rect>
+                <text x="18" y="30" class="a-label">query</text>
+                <text x="18" y="48" class="a-small">用户问题</text>
+              </g>
+              <g transform="translate(190 82)">
+                <rect width="142" height="64" class="a-box"></rect>
+                <text x="16" y="30" class="a-label">query analyzer</text>
+                <text x="16" y="48" class="a-small">类型 / 实体 / 时间 / 数字</text>
+              </g>
+              <g transform="translate(362 82)">
+                <rect width="160" height="64" class="a-box"></rect>
+                <text x="16" y="30" class="a-label">retriever topN</text>
+                <text x="16" y="48" class="a-small">dense / sparse / hybrid</text>
+              </g>
+              <g transform="translate(552 82)">
+                <rect width="152" height="64" class="a-box"></rect>
+                <text x="16" y="30" class="a-label">candidate snapshot</text>
+                <text x="16" y="48" class="a-small">固定候选集</text>
+              </g>
+              <g transform="translate(734 82)">
+                <rect width="144" height="64" class="a-box"></rect>
+                <text x="16" y="30" class="a-label">L0-L2 features</text>
+                <text x="16" y="48" class="a-small">线上可计算</text>
+              </g>
+              <g transform="translate(908 72)">
+                <rect width="164" height="84" class="a-redbox"></rect>
+                <text x="16" y="34" class="a-label">XGBoost ranker</text>
+                <text x="16" y="52" class="a-small">rank:ndcg / query group</text>
+                <text x="16" y="70" class="a-small">optional diversity pass</text>
+              </g>
+              <g transform="translate(912 174)">
+                <rect width="158" height="54" class="a-box"></rect>
+                <text x="16" y="25" class="a-label">topK evidence</text>
+                <text x="16" y="42" class="a-small">给生成器</text>
+              </g>
+
+              <path d="M160 114 H190" class="a-line"></path>
+              <path d="M332 114 H362" class="a-line"></path>
+              <path d="M522 114 H552" class="a-line"></path>
+              <path d="M704 114 H734" class="a-line"></path>
+              <path d="M878 114 H908" class="a-rline"></path>
+              <path d="M990 156 V174" class="a-line"></path>
+
+              <g transform="translate(40 330)">
+                <rect width="148" height="64" class="a-box"></rect>
+                <text x="16" y="30" class="a-label">logs + labels</text>
+                <text x="16" y="48" class="a-small">引用 / judge / 行为 / 人工</text>
+              </g>
+              <g transform="translate(218 330)">
+                <rect width="144" height="64" class="a-box"></rect>
+                <text x="16" y="30" class="a-label">dataset builder</text>
+                <text x="16" y="48" class="a-small">固定快照 + 分组</text>
+              </g>
+              <g transform="translate(392 330)">
+                <rect width="162" height="64" class="a-box"></rect>
+                <text x="16" y="30" class="a-label">split isolation</text>
+                <text x="16" y="48" class="a-small">train / val / regression / test</text>
+              </g>
+              <g transform="translate(584 330)">
+                <rect width="144" height="64" class="a-box"></rect>
+                <text x="16" y="30" class="a-label">feature extraction</text>
+                <text x="16" y="48" class="a-small">registry / DSL</text>
+              </g>
+              <g transform="translate(758 330)">
+                <rect width="144" height="64" class="a-redbox"></rect>
+                <text x="16" y="30" class="a-label">train ranker</text>
+                <text x="16" y="48" class="a-small">XGBoost LambdaMART</text>
+              </g>
+              <g transform="translate(932 318)">
+                <rect width="170" height="88" class="a-box"></rect>
+                <text x="16" y="30" class="a-label">offline gates</text>
+                <text x="16" y="48" class="a-small">evaluation</text>
+                <text x="16" y="66" class="a-small">regression / shadow / A/B</text>
+              </g>
+
+              <path d="M188 362 H218" class="a-line"></path>
+              <path d="M362 362 H392" class="a-line"></path>
+              <path d="M554 362 H584" class="a-line"></path>
+              <path d="M728 362 H758" class="a-rline"></path>
+              <path d="M902 362 H932" class="a-line"></path>
+              <path d="M1018 318 C1020 255 1086 238 1068 156" class="a-rline"></path>
+              <text x="1030" y="250" class="a-small">promote model</text>
+            </svg>
+          </div>
+
+          <div class="grid-2">
+            <div class="box">
+              <h3>在线链路</h3>
+              <p><code>query -> query analyzer -> retriever topN -> candidate snapshot -> feature extractor L0-L2 -> XGBoost LambdaMART reranker -> diversity pass -> topK evidence -> answer generator -> feedback/judgment logs</code></p>
+            </div>
+            <div class="box">
+              <h3>离线链路</h3>
+              <p><code>logs + labels + failure cases -> dataset builder -> train/validation/test/regression split -> feature extraction -> ranking model training -> offline evaluation -> regression gate -> shadow evaluation -> A/B rollout</code></p>
+            </div>
+          </div>
+        </section>
+
+        <section id="non-goals">
+          <div class="section-head">
+            <div class="section-num">04</div>
+            <div>
+              <h2>V0 非目标</h2>
+              <p class="lead">V0 先把可复现、可评测、可回滚的 reranker 做稳，不扩散成全套检索系统重写。</p>
+            </div>
+          </div>
+          <ul>
+            <li>不替换第一阶段 retriever。</li>
+            <li>不在在线重排热路径使用 LLM scoring。</li>
+            <li>不直接用 regression cases 训练模型。</li>
+            <li>不允许没有 feature registry 的散装特征代码增长。</li>
+            <li>不只优化全局 nDCG，而忽略 query slices 和历史失败。</li>
+          </ul>
+        </section>
+
+        <section id="schemas">
+          <div class="section-head">
+            <div class="section-num">05</div>
+            <div>
+              <h2>数据模型</h2>
+              <p class="lead">四个 schema 是系统地基：训练样本、候选快照、回归 case、特征配方。后续所有实验都应该引用这些对象。</p>
+            </div>
+          </div>
+
+          <h3>5.1 QueryDocExample</h3>
+          <p>一行表示一个 query 和一个候选 document/chunk。训练 ranking model 时，同一个 <code>query_id</code> 下的多条候选样本组成一个 group。</p>
+          <pre><code>{
+  "example_id": "q_001::doc_123::chunk_004",
+  "query_id": "q_001",
+  "query_text": "2024 Q3 毛利率下降原因是什么？",
+  "session_id": "s_789",
+  "candidate_doc_id": "doc_123",
+  "candidate_chunk_id": "chunk_004",
+  "candidate_doc_version": "v2026-06-20",
+  "corpus_snapshot_id": "corp_2026_06_26_0001",
+  "retrieval_timestamp": "2026-06-26T10:00:00Z",
+  "candidate_rank_dense": 3,
+  "candidate_rank_sparse": 8,
+  "candidate_score_dense": 0.812,
+  "candidate_score_sparse": 14.2,
+  "candidate_text_ref": "s3://bucket/chunks/doc_123/chunk_004.txt",
+  "query_type": ["time_sensitive", "numeric", "cause"],
+  "label": 3,
+  "label_source": ["human", "answer_citation", "llm_judge"],
+  "split": "train"
+}</code></pre>
+
+          <table>
+            <thead>
+              <tr><th>Label</th><th>含义</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>3</code></td><td>直接支撑答案。</td></tr>
+              <tr><td><code>2</code></td><td>有用的部分证据。</td></tr>
+              <tr><td><code>1</code></td><td>主题相关但弱、不完整。</td></tr>
+              <tr><td><code>0</code></td><td>无关或误导。</td></tr>
+              <tr><td><code>-1</code></td><td>显式 hard negative，不能排高。</td></tr>
+            </tbody>
+          </table>
+
+          <h3>5.2 CandidateSnapshot</h3>
+          <p>保存某次 retriever 输出的候选集合。baseline 和 candidate model 必须在同一个候选集合上比较。</p>
+          <pre><code>{
+  "query_id": "q_001",
+  "corpus_snapshot_id": "corp_2026_06_26_0001",
+  "retriever_config_id": "hybrid_v3",
+  "candidates": [
+    {
+      "doc_id": "doc_123",
+      "chunk_id": "chunk_004",
+      "doc_version": "v2026-06-20",
+      "dense_rank": 3,
+      "dense_score": 0.812,
+      "sparse_rank": 8,
+      "sparse_score": 14.2
+    }
+  ]
+}</code></pre>
+          <div class="note">规则：评估必须复用同一个 <code>CandidateSnapshot</code>，否则 reranker 实验不可比较。</div>
+
+          <h3>5.3 RegressionCase</h3>
+          <p>回归 case 是历史失败，不进入训练集。它用于门禁，防止旧错误复发。</p>
+          <pre><code>{
+  "case_id": "reg_001",
+  "query": "2024 Q3 毛利率下降原因是什么？",
+  "query_type": ["time_sensitive", "numeric", "cause"],
+  "corpus_snapshot_id": "corp_2026_06_26_0001",
+  "must_include_doc_ids": ["doc_123"],
+  "acceptable_doc_ids": ["doc_456"],
+  "must_not_include_doc_ids": ["doc_old_2023"],
+  "failure_type": "temporal_hard_negative",
+  "expected_evidence": ["2024", "Q3", "毛利率", "原材料成本"],
+  "notes": "旧年份文档主题相似，但不能作为答案来源。"
+}</code></pre>
+
+          <h3>5.4 FeatureRecipe</h3>
+          <p>所有自动生成的特征必须进入 registry/DSL。特征要有版本、输入、表达式、成本层级、线上安全性和预期生效 slice。</p>
+          <pre><code>name: temporal_metric_match
+version: 1
+description: Matches query time expression and metric expression against document text.
+inputs:
+  - query_text
+  - candidate_text
+  - query_entities
+  - doc_entities
+expr: date_overlap(query, doc) * metric_overlap(query, doc)
+type: numeric
+default_value: 0.0
+cost_tier: L1
+online_safe: true
+leakage_risk: low
+expected_slices:
+  - time_sensitive
+  - numeric
+owner: reranker</code></pre>
+        </section>
+
+        <section id="labels">
+          <div class="section-head">
+            <div class="section-num">06</div>
+            <div>
+              <h2>标签构建</h2>
+              <p class="lead">标签不是同等可信的真值。系统要记录来源、置信度、冲突处理和曝光位置。</p>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr><th>来源</th><th>优先级</th><th>用途</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>human_label</code></td><td>最高</td><td>golden queries、regression cases、审计样本。</td></tr>
+              <tr><td><code>answer_citation_label</code></td><td>高</td><td>引用明确且 chunk 支撑生成 claim 时使用。</td></tr>
+              <tr><td><code>llm_judge_label</code></td><td>中</td><td>规模化弱监督，必须用人工标签校准。</td></tr>
+              <tr><td><code>user_behavior_label</code></td><td>中低</td><td>点击、展开、复制、停留、点赞点踩，受曝光偏差影响。</td></tr>
+              <tr><td><code>retrieval_pseudo_label</code></td><td>低</td><td>主要用于启动阶段和 hard-negative mining。</td></tr>
+            </tbody>
+          </table>
+
+          <div class="grid-2">
+            <div class="box">
+              <h3>冲突处理</h3>
+              <ul>
+                <li><code>human_label</code> 覆盖所有其他标签。</li>
+                <li>人工 <code>must_not_include</code> 覆盖引用和用户行为。</li>
+                <li>LLM judge 与引用冲突时，进入 audit 或降低置信度。</li>
+                <li>用户点击一个已知坏文档，不会把它变成正样本。</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>标签元数据</h3>
+              <pre><code>{
+  "label": 3,
+  "label_confidence": 0.95,
+  "label_sources": ["human", "answer_citation"],
+  "label_rationale": "Chunk directly states Q3 gross margin decline and cost cause.",
+  "exposure_position": 4,
+  "was_exploration_candidate": false
+}</code></pre>
+            </div>
+          </div>
+          <div class="note">重要边界：label fields 永远不能作为线上模型特征。</div>
+        </section>
+
+        <section id="splits">
+          <div class="section-head">
+            <div class="section-num">07</div>
+            <div>
+              <h2>数据集隔离</h2>
+              <p class="lead">训练集教模型学习，回归集防模型忘事。混在一起会背题，指标会漂亮但线上更脆。</p>
+            </div>
+          </div>
+
+          <div class="diagram">
+            <div class="diagram-title"><span>SVG 流程图 B</span><span>Split Isolation</span></div>
+            <svg viewBox="0 0 1060 380" role="img" aria-labelledby="split-title">
+              <title id="split-title">数据集隔离图</title>
+              <defs>
+                <marker id="split-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 z" fill="#111111"></path>
+                </marker>
+                <style>
+                  .s-box { fill: #fff; stroke: #111; stroke-width: 1; }
+                  .s-red { fill: #fff0f3; stroke: #e4002b; stroke-width: 1.2; }
+                  .s-line { stroke: #111; stroke-width: 1.4; fill: none; marker-end: url(#split-arrow); }
+                  .s-label { font: 800 16px Helvetica, Arial, sans-serif; fill: #111; }
+                  .s-small { font: 400 12px Helvetica, Arial, sans-serif; fill: #5d626b; }
+                  .s-no { font: 900 18px Helvetica, Arial, sans-serif; fill: #e4002b; }
+                </style>
+              </defs>
+              <rect width="1060" height="380" fill="#fff"></rect>
+              <rect x="42" y="48" width="176" height="72" class="s-box"></rect>
+              <text x="64" y="82" class="s-label">raw_labeled_pool</text>
+              <text x="64" y="102" class="s-small">日志 / 标签 / 候选快照</text>
+              <rect x="286" y="24" width="150" height="70" class="s-box"></rect>
+              <text x="312" y="56" class="s-label">train_set</text>
+              <text x="312" y="76" class="s-small">训练模型</text>
+              <rect x="286" y="112" width="150" height="70" class="s-box"></rect>
+              <text x="304" y="144" class="s-label">validation_set</text>
+              <text x="304" y="164" class="s-small">调参 / 特征选择</text>
+              <rect x="286" y="200" width="150" height="70" class="s-red"></rect>
+              <text x="304" y="232" class="s-label">regression_set</text>
+              <text x="304" y="252" class="s-small">历史失败门禁</text>
+              <rect x="286" y="288" width="150" height="70" class="s-box"></rect>
+              <text x="316" y="320" class="s-label">test_set</text>
+              <text x="316" y="340" class="s-small">冷启动 holdout</text>
+
+              <path d="M218 84 C250 84 252 58 286 58" class="s-line"></path>
+              <path d="M218 84 C250 92 252 146 286 146" class="s-line"></path>
+              <path d="M218 84 C252 110 248 232 286 232" class="s-line"></path>
+              <path d="M218 84 C252 128 246 322 286 322" class="s-line"></path>
+
+              <rect x="532" y="56" width="214" height="96" class="s-box"></rect>
+              <text x="558" y="92" class="s-label">Model fitting</text>
+              <text x="558" y="114" class="s-small">只能使用 train + validation</text>
+              <rect x="532" y="202" width="214" height="96" class="s-red"></rect>
+              <text x="558" y="238" class="s-label">Regression gate</text>
+              <text x="558" y="260" class="s-small">只问旧问题是否复发</text>
+              <path d="M436 58 H532" class="s-line"></path>
+              <path d="M436 146 C478 146 490 104 532 104" class="s-line"></path>
+              <path d="M436 232 H532" class="s-line"></path>
+
+              <path d="M436 232 C492 184 500 152 532 132" stroke="#e4002b" stroke-width="2" fill="none" stroke-dasharray="6 6"></path>
+              <text x="492" y="184" class="s-no">禁止训练</text>
+
+              <rect x="838" y="130" width="168" height="94" class="s-box"></rect>
+              <text x="866" y="166" class="s-label">Promotion</text>
+              <text x="866" y="188" class="s-small">通过验证 + 回归后</text>
+              <path d="M746 104 C798 104 804 176 838 176" class="s-line"></path>
+              <path d="M746 250 C798 250 804 176 838 176" class="s-line"></path>
+            </svg>
+          </div>
+
+          <table>
+            <thead>
+              <tr><th>集合</th><th>用途</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>train_set</code></td><td>模型拟合与特征学习。</td></tr>
+              <tr><td><code>validation_set</code></td><td>early stopping、超参数选择、特征 promotion。</td></tr>
+              <tr><td><code>regression_set</code></td><td>历史失败门禁，只做 gate。</td></tr>
+              <tr><td><code>test_set</code></td><td>低频最终冷启动评估。</td></tr>
+            </tbody>
+          </table>
+          <h3>硬规则</h3>
+          <ul>
+            <li>同一个 <code>query_id</code> 不能跨集合。</li>
+            <li>当 session behavior 参与标签构建时，同一用户会话最好不能跨集合。</li>
+            <li>同一人工修复失败族不能拆到 train 和 regression。</li>
+            <li>同一次评估必须复用相同 candidate snapshot。</li>
+            <li>Regression cases 默认不可变，除非明确 retire。</li>
+          </ul>
+          <h3>可选 aging policy</h3>
+          <pre><code>Recent data -> validation/shadow emphasis.
+Stable historical failures -> regression set.
+Old broad logs -> train if labels are still valid.</code></pre>
+        </section>
+
+        <section id="regression">
+          <div class="section-head">
+            <div class="section-num">08</div>
+            <div>
+              <h2>回归集生命周期</h2>
+              <p class="lead">回归集应该小、硬、稳定。它不是越大越好，而是要能卡住历史上真正伤人的错误。</p>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="box">
+              <h3>创建触发</h3>
+              <ul>
+                <li>生产坏答案由 bad rerank 导致。</li>
+                <li>must-include evidence 掉出 topK。</li>
+                <li>must-not-include document 进入 topK。</li>
+                <li>一次人工排查修复了一个失败模式。</li>
+                <li>高价值 golden query 发生回归。</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>生命周期</h3>
+              <pre><code>new_case
+  -> active regression gate
+  -> periodically reviewed for corpus/version validity
+  -> either retained, retired, or generalized</code></pre>
+            </div>
+          </div>
+          <div class="note">
+            原始回归 case 默认不进训练。如果回归集过大，要把模式泛化成 hard-negative generator，例如从“2024 Q3 vs 2023 Q3”泛化为“时间敏感 query 中，同主题但年份/季度/版本错误的文档作为 hard negative”。
+          </div>
+        </section>
+
+        <section id="features">
+          <div class="section-head">
+            <div class="section-num">09</div>
+            <div>
+              <h2>特征体系</h2>
+              <p class="lead">特征不是描述 document 本身，而是描述这个 document 对这个 query 是否能成为答案证据。</p>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="box">
+              <h3>7.1 L0 Retrieval Features</h3>
+              <div class="tag-row">
+                <span class="tag">dense_score</span><span class="tag">sparse_score</span><span class="tag">dense_rank</span><span class="tag">sparse_rank</span><span class="tag">rrf_score</span><span class="tag">retriever_overlap_rank_delta</span><span class="tag">candidate_count_for_query</span>
+              </div>
+            </div>
+            <div class="box">
+              <h3>7.2 Query Features</h3>
+              <div class="tag-row">
+                <span class="tag">query_length_chars</span><span class="tag">query_length_terms</span><span class="tag">query_has_date</span><span class="tag">query_has_number</span><span class="tag">query_has_entity</span><span class="tag">query_has_comparison</span><span class="tag">query_has_current_intent</span><span class="tag">query_type_definition</span><span class="tag">query_type_how_to</span><span class="tag">query_type_numeric</span><span class="tag">query_type_time_sensitive</span><span class="tag">query_type_troubleshooting</span><span class="tag">query_type_policy</span><span class="tag">query_type_code</span>
+              </div>
+            </div>
+            <div class="box">
+              <h3>7.3 Document/Chunk Features</h3>
+              <div class="tag-row">
+                <span class="tag">chunk_length_chars</span><span class="tag">chunk_length_terms</span><span class="tag">chunk_position</span><span class="tag">doc_age_days</span><span class="tag">source_type</span><span class="tag">section_depth</span><span class="tag">title_length</span><span class="tag">has_table</span><span class="tag">has_code</span><span class="tag">has_list</span><span class="tag">has_heading</span><span class="tag">information_density</span>
+              </div>
+            </div>
+            <div class="box">
+              <h3>7.4 Query-Document Lexical Features</h3>
+              <div class="tag-row">
+                <span class="tag">exact_term_overlap_ratio</span><span class="tag">weighted_term_overlap</span><span class="tag">title_query_overlap</span><span class="tag">heading_query_overlap</span><span class="tag">important_term_overlap</span><span class="tag">bm25_query_doc_score</span><span class="tag">rare_term_overlap</span>
+              </div>
+            </div>
+            <div class="box accent">
+              <h3>7.5 Evidence Features</h3>
+              <p>这组特征直接刻画“能否支撑答案”。</p>
+              <div class="tag-row">
+                <span class="tag red">entity_overlap_count</span><span class="tag red">date_overlap_count</span><span class="tag red">date_granularity_match</span><span class="tag red">quarter_overlap</span><span class="tag red">number_overlap_count</span><span class="tag red">metric_overlap_count</span><span class="tag red">unit_overlap_count</span><span class="tag red">cause_word_overlap</span><span class="tag red">procedure_marker_count</span><span class="tag red">definition_marker_count</span><span class="tag red">citation_like_text_present</span>
+              </div>
+            </div>
+            <div class="box">
+              <h3>7.6 Anti-Features</h3>
+              <p>用于压低误导、模板、导航、低信息密度、错版本文档。</p>
+              <div class="tag-row">
+                <span class="tag">boilerplate_score</span><span class="tag">navigation_score</span><span class="tag">template_score</span><span class="tag">duplicate_score</span><span class="tag">too_short_flag</span><span class="tag">too_long_flag</span><span class="tag">wrong_date_flag</span><span class="tag">wrong_entity_flag</span><span class="tag">low_information_density_flag</span><span class="tag">conflicting_version_flag</span>
+              </div>
+            </div>
+            <div class="box">
+              <h3>7.7 Candidate-Context Features</h3>
+              <p>同一 query 候选集内部的相对特征，需要 group-level 特征抽取。</p>
+              <div class="tag-row">
+                <span class="tag">score_gap_to_top_dense</span><span class="tag">score_gap_to_top_sparse</span><span class="tag">semantic_redundancy_with_higher_ranked_docs</span><span class="tag">source_diversity_score</span><span class="tag">same_doc_as_higher_ranked_candidate</span><span class="tag">best_chunk_in_doc_flag</span>
+              </div>
+            </div>
+            <div class="box">
+              <h3>V0 Initial Feature Set</h3>
+              <p>从 20 到 40 个稳定特征开始，不要一开始堆几百个特征。</p>
+              <div class="tag-row">
+                <span class="tag">dense_score</span><span class="tag">sparse_score</span><span class="tag">dense_rank</span><span class="tag">sparse_rank</span><span class="tag">rrf_score</span><span class="tag">query_length_terms</span><span class="tag">chunk_length_terms</span><span class="tag">chunk_position</span><span class="tag">doc_age_days</span><span class="tag">source_type</span><span class="tag">exact_term_overlap_ratio</span><span class="tag">weighted_term_overlap</span><span class="tag">title_query_overlap</span><span class="tag">heading_query_overlap</span><span class="tag">entity_overlap_count</span><span class="tag">date_overlap_count</span><span class="tag">number_overlap_count</span><span class="tag">has_table</span><span class="tag">has_code</span><span class="tag">has_list</span><span class="tag">duplicate_score</span><span class="tag">boilerplate_score</span><span class="tag">navigation_score</span><span class="tag">wrong_date_flag</span><span class="tag">low_information_density_flag</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="negatives">
+          <div class="section-head">
+            <div class="section-num">10</div>
+            <div>
+              <h2>Hard Negative 类型</h2>
+              <p class="lead">Reranker 真正的价值常常不是找正样本，而是把“看起来很像但不能回答”的文档压下去。</p>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr><th>类型</th><th>定义</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>semantic_hard_negative</code></td><td>向量相似度高，但不能回答 query。</td></tr>
+              <tr><td><code>lexical_hard_negative</code></td><td>关键词命中高，但上下文错误。</td></tr>
+              <tr><td><code>temporal_hard_negative</code></td><td>主题匹配，但时间或版本不匹配。</td></tr>
+              <tr><td><code>entity_hard_negative</code></td><td>同名或相似实体，但实际对象错误。</td></tr>
+              <tr><td><code>format_hard_negative</code></td><td>导航页、模板、目录、boilerplate。</td></tr>
+              <tr><td><code>duplicate_negative</code></td><td>重复或近重复 chunk，但证据质量更弱。</td></tr>
+              <tr><td><code>stale_version_negative</code></td><td>旧政策、旧 spec、旧产品版本，不应回答当前 query。</td></tr>
+            </tbody>
+          </table>
+          <p>训练集应包含随机负样本和显式 hard negatives；验证集和回归集必须按 negative type 报告指标。</p>
+        </section>
+
+        <section id="training">
+          <div class="section-head">
+            <div class="section-num">11</div>
+            <div>
+              <h2>模型训练</h2>
+              <p class="lead">推荐第一版用 XGBoost ranking objective。每个 query 是一个 group，候选文档在 group 内竞争。</p>
+            </div>
+          </div>
+          <pre><code>model:
+  type: xgboost_ranker
+  objective: rank:ndcg
+  eval_metric:
+    - ndcg@5
+    - ndcg@10
+  group_key: query_id
+  tree_method: hist
+  early_stopping_rounds: 100</code></pre>
+          <div class="grid-2">
+            <div class="box">
+              <h3>训练规则</h3>
+              <ul>
+                <li>按 <code>query_id</code> 分组。</li>
+                <li>不要把 query-doc pair 打散 shuffle 到不同 group。</li>
+                <li>使用 validation groups 做 early stopping。</li>
+                <li>模型 artifact 中保存 feature names 和 recipe versions。</li>
+                <li>模型、特征配置、训练数据 snapshot ID、评估报告必须一起保存。</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>Baseline 对比</h3>
+              <ul>
+                <li><code>baseline_0</code>: dense retriever rank</li>
+                <li><code>baseline_1</code>: sparse/BM25 rank</li>
+                <li><code>baseline_2</code>: reciprocal rank fusion</li>
+                <li><code>baseline_3</code>: existing production reranker, if any</li>
+                <li><code>candidate</code>: XGBoost Q-D reranker</li>
+              </ul>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="box accent">
+              <h3>AutoML / HPO 分工</h3>
+              <p>LLM 负责提出 <code>FeatureRecipe</code> 假设，AutoML/HPO 负责在固定特征集上搜索 XGBoost 参数。不要自己实现 TPE、Bayesian search、ASHA/HyperBand、trial pruning 或分布式 trial 调度。</p>
+              <ul>
+                <li><code>Optuna</code>: V0 默认选择，适合框架自己掌控 snapshot、ablation、gate、report。</li>
+                <li><code>FLAML</code>: 适合快速、预算敏感的 baseline。</li>
+                <li><code>Ray Tune</code>: 适合大量 trial、分布式、ASHA/HyperBand。</li>
+                <li><code>AutoGluon</code>: 适合作为强 tabular AutoML 对照组，不建议作为 XGBoost-only 核心引擎。</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>HPOEngine Adapter</h3>
+              <pre><code>class HPOEngine:
+    def optimize(
+        self,
+        task_profile,
+        feature_set,
+        train_snapshot,
+        valid_snapshot,
+        budget,
+    ) -> TrialResult:
+        ...</code></pre>
+              <p>常见搜索维度：<code>max_depth</code>、<code>min_child_weight</code>、<code>eta</code>、<code>subsample</code>、<code>colsample_*</code>、<code>gamma</code>、<code>reg_alpha</code>、<code>reg_lambda</code>、<code>max_bin</code>、<code>early_stopping_rounds</code>。</p>
+            </div>
+          </div>
+          <h3>框架自己实现的治理层</h3>
+          <p>不要重写 AutoML 搜索算法，但要自己实现实验治理和上线门禁。外部 HPO 工具只负责在固定特征集、固定 snapshot 和固定 budget 下给出候选参数。</p>
+          <table>
+            <thead><tr><th>组件</th><th>职责</th></tr></thead>
+            <tbody>
+              <tr><td><code>ExperimentRunner</code></td><td>管理 trial 生命周期、随机种子、预算、artifact 和可复现性。</td></tr>
+              <tr><td><code>FeatureRecipeRegistry</code></td><td>校验特征定义、版本、online-safe 标记和 leakage risk。</td></tr>
+              <tr><td><code>DatasetSnapshotManager</code></td><td>冻结 train、validation、test、regression snapshots。</td></tr>
+              <tr><td><code>AblationPlanner</code></td><td>构造 A/B/C/D 消融实验，控制 baseline 与 candidate 的 HPO 预算公平。</td></tr>
+              <tr><td><code>RegressionGate</code></td><td>运行历史失败 case，但不把 regression cases 直接放入训练。</td></tr>
+              <tr><td><code>SliceEvaluator</code></td><td>报告 query slice、hard negatives 和成本敏感指标。</td></tr>
+              <tr><td><code>PromotionGate</code></td><td>合并 global、slice、regression、latency、reliability 门禁。</td></tr>
+              <tr><td><code>FeatureMemoryStore</code></td><td>记录 promoted、rejected、quarantined 特征想法和参数先验。</td></tr>
+              <tr><td><code>ReportGenerator</code></td><td>生成面向人和 AI agent 的 experiment card。</td></tr>
+            </tbody>
+          </table>
+          <div class="note">
+            不要给每个 LLM 新特征都跑完整 HPO。先用 scout 阶段的小预算或固定强参数筛掉弱特征，只对 finalist 特征跑完整 HPO 和 promotion gate。
+          </div>
+          <h3>推荐落地组合</h3>
+          <table>
+            <thead><tr><th>层级</th><th>默认选择</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>核心模型</td><td><code>XGBoost / XGBRanker</code></td><td>保持模型 artifact 简单、可迁移，并兼容 LTR-style serving。</td></tr>
+              <tr><td>HPO 引擎</td><td><code>Optuna</code></td><td>作为默认 <code>HPOEngine</code> adapter；<code>FLAML</code> 可做快速预算敏感 baseline，<code>Ray Tune</code> 只在需要分布式 trial 时引入。</td></tr>
+              <tr><td>AutoML 对照</td><td><code>AutoGluon</code></td><td>适合作为强 tabular AutoML challenger，不作为核心引擎。</td></tr>
+              <tr><td>特征发现</td><td>LLM + 自有 <code>FeatureRecipeRegistry</code></td><td>LLM 从 failed queries、weak slices、hard negatives、regression cases 中提出特征；registry、泄漏检查、online-safe、feature memory 由本框架掌控。</td></tr>
+              <tr><td>离线候选生成</td><td><code>Featuretools / OpenFE</code></td><td>可选引入，但输出必须转换成 <code>FeatureRecipe</code> 后才能训练。</td></tr>
+              <tr><td>RAG 评测</td><td>自有 gates + Ragas-style evaluation</td><td><code>RegressionGate</code> 和 <code>SliceEvaluator</code> 由本框架掌控；Ragas-style 评测可作为 answer support、faithfulness、context usefulness 的辅助 judge。</td></tr>
+              <tr><td>Serving 参考</td><td>OpenSearch LTR / Elasticsearch LTR / Metarank / Vespa</td><td>适合作为 LTR serving 或架构参考；如果会隐藏特征治理、A/B/C/D 消融、HPO 预算公平或回归门禁，不要作为核心框架。</td></tr>
+            </tbody>
+          </table>
+          <pre><code>Default V0 stack:
+  XGBoost / XGBRanker
+  + Optuna HPOEngine
+  + self-owned FeatureRecipeRegistry
+  + self-owned DatasetSnapshotManager
+  + self-owned A/B/C/D AblationPlanner
+  + self-owned RegressionGate and SliceEvaluator
+  + optional Ragas-style RAG evaluation
+  + optional Featuretools/OpenFE candidate generation</code></pre>
+        </section>
+
+        <section id="evaluation">
+          <div class="section-head">
+            <div class="section-num">12</div>
+            <div>
+              <h2>评测指标</h2>
+              <p class="lead">评测不只看排序指标，还要看 RAG 答案是否被证据支撑，特征是否健康，以及不同 query slice 是否退化。</p>
+            </div>
+          </div>
+          <div class="grid-4">
+            <div class="box">
+              <h3>Ranking Metrics</h3>
+              <ul>
+                <li><code>nDCG@5</code></li>
+                <li><code>nDCG@10</code></li>
+                <li><code>MRR@10</code></li>
+                <li><code>Recall@5</code> for must_include</li>
+                <li><code>Recall@10</code> for must_include</li>
+                <li><code>BadDoc@5</code> for must_not_include</li>
+                <li><code>BadDoc@10</code> for must_not_include</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>RAG Outcome Metrics</h3>
+              <ul>
+                <li><code>answer_support_rate</code></li>
+                <li><code>citation_precision</code></li>
+                <li><code>citation_recall</code></li>
+                <li><code>unsupported_claim_rate</code></li>
+                <li><code>answer_refusal_when_no_evidence_rate</code></li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>Feature Health</h3>
+              <ul>
+                <li><code>feature_missing_rate</code></li>
+                <li><code>feature_default_rate</code></li>
+                <li><code>feature_latency_p50_ms</code></li>
+                <li><code>feature_latency_p95_ms</code></li>
+                <li><code>feature_drift_score</code></li>
+                <li><code>feature_cardinality</code></li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>Slice Metrics</h3>
+              <ul>
+                <li><code>definition</code></li>
+                <li><code>how_to</code></li>
+                <li><code>numeric</code></li>
+                <li><code>time_sensitive</code></li>
+                <li><code>comparison</code></li>
+                <li><code>troubleshooting</code></li>
+                <li><code>policy</code></li>
+                <li><code>code</code></li>
+                <li><code>entity_lookup</code></li>
+                <li><code>multi_hop</code></li>
+              </ul>
+            </div>
+          </div>
+          <p>同时按 source type 和 hard negative type 报告指标。</p>
+        </section>
+
+        <section id="gates">
+          <div class="section-head">
+            <div class="section-num">13</div>
+            <div>
+              <h2>上线门禁</h2>
+              <p class="lead">全局提升不够。候选模型必须通过全局、回归、slice、延迟和可靠性门禁。</p>
+            </div>
+          </div>
+
+          <div class="diagram">
+            <div class="diagram-title"><span>SVG 流程图 C</span><span>Promotion Gate</span></div>
+            <svg viewBox="0 0 1080 360" role="img" aria-labelledby="gate-title">
+              <title id="gate-title">上线门禁流程</title>
+              <defs>
+                <marker id="gate-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 z" fill="#111111"></path>
+                </marker>
+                <marker id="gate-arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 z" fill="#e4002b"></path>
+                </marker>
+                <style>
+                  .g-box { fill: #fff; stroke: #111; stroke-width: 1; }
+                  .g-red { fill: #fff0f3; stroke: #e4002b; stroke-width: 1.2; }
+                  .g-line { stroke: #111; stroke-width: 1.4; fill: none; marker-end: url(#gate-arrow); }
+                  .g-rline { stroke: #e4002b; stroke-width: 1.8; fill: none; marker-end: url(#gate-arrow-red); }
+                  .g-label { font: 800 15px Helvetica, Arial, sans-serif; fill: #111; }
+                  .g-small { font: 400 12px Helvetica, Arial, sans-serif; fill: #5d626b; }
+                  .g-redtext { font: 900 18px Helvetica, Arial, sans-serif; fill: #e4002b; }
+                </style>
+              </defs>
+              <rect width="1080" height="360" fill="#fff"></rect>
+              <rect x="36" y="134" width="146" height="70" class="g-box"></rect>
+              <text x="60" y="166" class="g-label">candidate model</text>
+              <text x="60" y="186" class="g-small">新模型 / 新特征集</text>
+              <rect x="236" y="42" width="148" height="68" class="g-box"></rect>
+              <text x="260" y="72" class="g-label">global gate</text>
+              <text x="260" y="92" class="g-small">nDCG / MRR</text>
+              <rect x="236" y="134" width="148" height="68" class="g-red"></rect>
+              <text x="260" y="164" class="g-label">regression gate</text>
+              <text x="260" y="184" class="g-small">must_include / must_not</text>
+              <rect x="236" y="226" width="148" height="68" class="g-box"></rect>
+              <text x="260" y="256" class="g-label">slice gate</text>
+              <text x="260" y="276" class="g-small">critical slices</text>
+
+              <rect x="462" y="86" width="154" height="72" class="g-box"></rect>
+              <text x="486" y="118" class="g-label">latency gate</text>
+              <text x="486" y="138" class="g-small">features p95 / inference</text>
+              <rect x="462" y="196" width="154" height="72" class="g-box"></rect>
+              <text x="486" y="228" class="g-label">reliability gate</text>
+              <text x="486" y="248" class="g-small">missing / online_safe</text>
+
+              <rect x="706" y="130" width="150" height="84" class="g-red"></rect>
+              <text x="734" y="162" class="g-label">shadow</text>
+              <text x="734" y="182" class="g-small">无用户影响</text>
+              <text x="734" y="200" class="g-small">记录 rank delta</text>
+
+              <rect x="914" y="130" width="122" height="84" class="g-box"></rect>
+              <text x="944" y="162" class="g-label">A/B</text>
+              <text x="944" y="182" class="g-small">有限流量</text>
+              <text x="944" y="200" class="g-small">再全量</text>
+
+              <path d="M182 169 C210 169 210 76 236 76" class="g-line"></path>
+              <path d="M182 169 H236" class="g-rline"></path>
+              <path d="M182 169 C210 169 210 260 236 260" class="g-line"></path>
+              <path d="M384 76 C426 76 424 122 462 122" class="g-line"></path>
+              <path d="M384 168 C426 168 424 122 462 122" class="g-line"></path>
+              <path d="M384 260 C426 260 424 232 462 232" class="g-line"></path>
+              <path d="M616 122 C660 122 664 172 706 172" class="g-line"></path>
+              <path d="M616 232 C660 232 664 172 706 172" class="g-line"></path>
+              <path d="M856 172 H914" class="g-rline"></path>
+              <text x="412" y="318" class="g-redtext">任一 gate 失败，reject 或 quarantine</text>
+            </svg>
+          </div>
+
+          <pre><code>promotion_gate:
+  global:
+    ndcg10_min_delta: 0.002
+    mrr10_min_delta: 0.000
+  regression:
+    must_include_recall_at_5_drop_max: 0.000
+    must_not_include_at_5_increase_max: 0.000
+    golden_mrr10_drop_max: 0.000
+  slices:
+    max_allowed_ndcg10_drop: 0.010
+    critical_slice_max_allowed_drop: 0.000
+  latency:
+    feature_extraction_p95_ms_max: 20
+    model_inference_p95_ms_max: 5
+  reliability:
+    feature_missing_rate_max: 0.300
+    online_safe_required: true</code></pre>
+          <ul>
+            <li>全局提升不够。</li>
+            <li>回归失败会阻止 promotion。</li>
+            <li>如果某特征提升 numeric queries 但伤害 policy queries，应改成 conditional feature，而不是全局使用。</li>
+          </ul>
+        </section>
+
+        <section id="discovery">
+          <div class="section-head">
+            <div class="section-num">14</div>
+            <div>
+              <h2>自动特征发现</h2>
+              <p class="lead">自动发现不是让系统自由写特征，而是从失败簇里提出可验证假设，然后进入 FeatureRecipe 和门禁。</p>
+            </div>
+          </div>
+
+          <div class="diagram">
+            <div class="diagram-title"><span>SVG 流程图 D</span><span>Feature Discovery Loop</span></div>
+            <svg viewBox="0 0 1100 520" role="img" aria-labelledby="discover-title">
+              <title id="discover-title">自动特征发现闭环</title>
+              <defs>
+                <marker id="d-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 z" fill="#111111"></path>
+                </marker>
+                <marker id="d-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 z" fill="#e4002b"></path>
+                </marker>
+                <style>
+                  .d-box { fill: #fff; stroke: #111; stroke-width: 1; }
+                  .d-redbox { fill: #fff0f3; stroke: #e4002b; stroke-width: 1.2; }
+                  .d-line { stroke: #111; stroke-width: 1.4; fill: none; marker-end: url(#d-arrow); }
+                  .d-rline { stroke: #e4002b; stroke-width: 1.8; fill: none; marker-end: url(#d-red); }
+                  .d-label { font: 800 15px Helvetica, Arial, sans-serif; fill: #111; }
+                  .d-small { font: 400 12px Helvetica, Arial, sans-serif; fill: #5d626b; }
+                  .d-redtext { font: 900 20px Helvetica, Arial, sans-serif; fill: #e4002b; }
+                </style>
+              </defs>
+              <rect width="1100" height="520" fill="#fff"></rect>
+              <rect x="70" y="58" width="164" height="76" class="d-box"></rect>
+              <text x="96" y="91" class="d-label">failure cluster</text>
+              <text x="96" y="112" class="d-small">失败 query 聚类</text>
+
+              <rect x="330" y="58" width="178" height="76" class="d-box"></rect>
+              <text x="354" y="91" class="d-label">positive vs negative</text>
+              <text x="354" y="112" class="d-small">正样本 vs hard negative</text>
+
+              <rect x="604" y="58" width="172" height="76" class="d-redbox"></rect>
+              <text x="628" y="91" class="d-label">hypothesis</text>
+              <text x="628" y="112" class="d-small">例如 quarter_overlap</text>
+
+              <rect x="854" y="58" width="168" height="76" class="d-box"></rect>
+              <text x="878" y="91" class="d-label">FeatureRecipe</text>
+              <text x="878" y="112" class="d-small">DSL / registry</text>
+
+              <rect x="854" y="218" width="168" height="76" class="d-box"></rect>
+              <text x="878" y="251" class="d-label">offline compute</text>
+              <text x="878" y="272" class="d-small">批量计算特征</text>
+
+              <rect x="604" y="218" width="172" height="76" class="d-box"></rect>
+              <text x="628" y="251" class="d-label">ablation</text>
+              <text x="628" y="272" class="d-small">baseline vs +feature</text>
+
+              <rect x="330" y="218" width="178" height="76" class="d-redbox"></rect>
+              <text x="354" y="251" class="d-label">gates</text>
+              <text x="354" y="272" class="d-small">global / slice / regression / latency</text>
+
+              <rect x="70" y="218" width="164" height="76" class="d-box"></rect>
+              <text x="96" y="251" class="d-label">decision</text>
+              <text x="96" y="272" class="d-small">promote / reject / quarantine</text>
+
+              <rect x="396" y="378" width="300" height="76" class="d-box"></rect>
+              <text x="426" y="411" class="d-label">feature memory</text>
+              <text x="426" y="432" class="d-small">promoted / rejected / quarantined / ablation runs</text>
+
+              <path d="M234 96 H330" class="d-line"></path>
+              <path d="M508 96 H604" class="d-line"></path>
+              <path d="M776 96 H854" class="d-rline"></path>
+              <path d="M938 134 V218" class="d-line"></path>
+              <path d="M854 256 H776" class="d-line"></path>
+              <path d="M604 256 H508" class="d-line"></path>
+              <path d="M330 256 H234" class="d-rline"></path>
+              <path d="M152 294 C152 420 320 416 396 416" class="d-line"></path>
+              <path d="M696 416 C914 416 1032 340 1022 134" class="d-line"></path>
+              <text x="744" y="402" class="d-small">成功经验进入下一轮搜索边界</text>
+              <text x="88" y="474" class="d-redtext">LLM 只提假设，不能跳过验证。</text>
+            </svg>
+          </div>
+
+          <h3>Discovery Inputs</h3>
+          <div class="tag-row">
+            <span class="tag">failed queries</span><span class="tag">positive documents</span><span class="tag">hard negative documents</span><span class="tag">query taxonomy</span><span class="tag">retriever scores/ranks</span><span class="tag">answer citations</span><span class="tag">LLM judge labels</span><span class="tag">user feedback</span><span class="tag">human annotations</span>
+          </div>
+
+          <h3>Discovery Loop</h3>
+          <ol>
+            <li>选择一个 failure cluster。</li>
+            <li>比较 positive docs 和 hard negatives。</li>
+            <li>找出能区分二者的差异。</li>
+            <li>生成 DSL 里的 candidate <code>FeatureRecipe</code>。</li>
+            <li>离线计算该特征。</li>
+            <li>做 ablation：baseline features、baseline + candidate feature、baseline + candidate feature group。</li>
+            <li>评估 global、slice、regression、latency。</li>
+            <li>promote、reject 或 quarantine。</li>
+            <li>写入 feature memory。</li>
+          </ol>
+
+          <h3>Feature Discovery + HPO 公平对比</h3>
+          <p>LLM 新特征和 AutoML 调参必须拆开归因。每个候选特征至少比较四组：</p>
+          <table>
+            <thead>
+              <tr><th>实验格</th><th>含义</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>A</code></td><td>baseline features + baseline params</td></tr>
+              <tr><td><code>B</code></td><td>baseline features + tuned params</td></tr>
+              <tr><td><code>C</code></td><td>baseline + candidate feature + baseline params</td></tr>
+              <tr><td><code>D</code></td><td>baseline + candidate feature + tuned params</td></tr>
+            </tbody>
+          </table>
+          <div class="grid-2">
+            <div class="box">
+              <h3>归因方式</h3>
+              <ul>
+                <li><code>B - A</code>: 参数搜索收益。</li>
+                <li><code>C - A</code>: 特征本身收益。</li>
+                <li><code>D - B</code>: 调参后新特征仍然带来的收益。</li>
+                <li><code>D - C</code>: 调参对新特征的放大收益。</li>
+              </ul>
+            </div>
+            <div class="box accent">
+              <h3>Promotion 判断</h3>
+              <p>主要看 <code>D - B</code>，不是 <code>D - A</code>。否则系统会把参数搜索带来的提升错误归因给新特征。</p>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="box">
+              <h3>LLM 可以做什么</h3>
+              <ul>
+                <li>提出“这个 query 需要时间精确匹配”。</li>
+                <li>指出“负样本文档同主题但季度错误”。</li>
+                <li>建议尝试 <code>date_granularity_match</code> 或 <code>quarter_overlap</code>。</li>
+              </ul>
+            </div>
+            <div class="box accent">
+              <h3>LLM 不可以做什么</h3>
+              <ul>
+                <li>不能用 LLM online score 作为所有候选的 XGBoost 特征。</li>
+                <li>不能写没有 recipe entry 的散装 Python 特征。</li>
+                <li>不能使用 answer-generation outputs 作为模型输入特征。</li>
+              </ul>
+            </div>
+          </div>
+
+          <h3>Feature Candidate Record</h3>
+          <pre><code>{
+  "feature_name": "quarter_overlap",
+  "hypothesis": "Time-sensitive financial queries need quarter-level matching.",
+  "source_failure_cases": ["reg_001", "reg_017"],
+  "expected_slices": ["time_sensitive", "numeric"],
+  "ablation_result": {
+    "global_ndcg10_delta": 0.001,
+    "time_sensitive_ndcg10_delta": 0.035,
+    "policy_ndcg10_delta": -0.002,
+    "regression_failures": 0,
+    "latency_p95_ms": 1.2
+  },
+  "decision": "promote_conditional",
+  "decision_reason": "Strong time-sensitive gain with no regression failure."
+}</code></pre>
+        </section>
+
+        <section id="memory">
+          <div class="section-head">
+            <div class="section-num">15</div>
+            <div>
+              <h2>特征记忆</h2>
+              <p class="lead">系统要记住哪些特征有效、哪些无效、哪些暂时隔离。否则自动发现会反复试同一个弱想法。</p>
+            </div>
+          </div>
+          <div class="grid-4">
+            <div class="box"><h3><code>promoted_features.jsonl</code></h3><p>已经通过门禁的特征。</p></div>
+            <div class="box"><h3><code>rejected_features.jsonl</code></h3><p>明确失败且记录原因的特征。</p></div>
+            <div class="box"><h3><code>quarantined_features.jsonl</code></h3><p>有潜力但风险或证据不足的特征。</p></div>
+            <div class="box"><h3><code>feature_ablation_runs.jsonl</code></h3><p>所有消融实验记录。</p></div>
+          </div>
+          <pre><code>{
+  "feature_name": "doc_length_raw",
+  "decision": "rejected",
+  "reason": "Improved global nDCG by 0.0004 but hurt how_to slice by 0.018.",
+  "date": "2026-06-26"
+}</code></pre>
+        </section>
+
+        <section id="serving">
+          <div class="section-head">
+            <div class="section-num">16</div>
+            <div>
+              <h2>在线服务</h2>
+              <p class="lead">线上路径只使用生成前可计算的 L0-L2 特征，输出 topK evidence，同时记录可复现日志。</p>
+            </div>
+          </div>
+          <ol>
+            <li>Query analyzer 标注 query type，并抽取 entities、dates、numbers。</li>
+            <li>Retriever 返回 top100 candidates，包含 dense/sparse scores。</li>
+            <li>Feature extractor 为每个 query-doc pair 计算 L0-L2 features。</li>
+            <li>XGBoost ranker 为候选打分。</li>
+            <li>可选 diversity pass，移除重复 chunks 和 same-doc crowding。</li>
+            <li>返回 top5 或 top10 给 generator。</li>
+            <li>记录 ranking、features hash、model version、citations、judge labels、user feedback。</li>
+          </ol>
+          <h3>Online Log Record</h3>
+          <pre><code>{
+  "query_id": "q_live_001",
+  "model_version": "qd_ranker_2026_06_26_01",
+  "feature_set_version": "features_v12",
+  "retriever_config_id": "hybrid_v3",
+  "corpus_snapshot_id": "corp_live_2026_06_26",
+  "ranked_candidates": [
+    {
+      "doc_id": "doc_123",
+      "chunk_id": "chunk_004",
+      "old_rank": 8,
+      "new_rank": 1,
+      "score": 1.732,
+      "feature_hash": "abc123"
+    }
+  ],
+  "served_top_k": 5
+}</code></pre>
+        </section>
+
+        <section id="rollout">
+          <div class="section-head">
+            <div class="section-num">17</div>
+            <div>
+              <h2>Shadow 与 A/B</h2>
+              <p class="lead">新模型先 shadow，不影响真实排序；通过后再有限 A/B，最后全量。</p>
+            </div>
+          </div>
+          <pre><code>offline pass
+  -> regression pass
+  -> shadow traffic, no user impact
+  -> limited A/B
+  -> full rollout</code></pre>
+          <div class="grid-2">
+            <div class="box">
+              <h3>Shadow Metrics</h3>
+              <ul>
+                <li><code>rank_delta_distribution</code></li>
+                <li><code>must_include_lift_if_labels_available</code></li>
+                <li><code>answer_citation_overlap_with_old_model</code></li>
+                <li><code>LLM_judge_support_delta</code></li>
+                <li><code>latency_delta</code></li>
+                <li><code>top_doc_source_distribution_shift</code></li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>A/B Metrics</h3>
+              <ul>
+                <li><code>answer_helpfulness</code></li>
+                <li><code>user_followup_rate</code></li>
+                <li><code>citation_click_rate</code></li>
+                <li><code>thumbs_down_rate</code></li>
+                <li><code>unsupported_claim_rate</code></li>
+                <li><code>latency_p95</code></li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="exploration">
+          <div class="section-head">
+            <div class="section-num">18</div>
+            <div>
+              <h2>探索机制</h2>
+              <p class="lead">如果永远只展示当前模型相信的 topK，反馈会越来越窄。需要少量探索来发现新文档、新 query 类型和新特征。</p>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="box accent">
+              <h3>保守区</h3>
+              <p><code>Top 5</code> 使用稳定生产排序，保护用户体验。</p>
+            </div>
+            <div class="box">
+              <h3>探索区</h3>
+              <p><code>Rank 6-10</code> 允许有限探索高不确定性候选。探索候选必须打标，避免后续标签高估生产模型能力。</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="explainability">
+          <div class="section-head">
+            <div class="section-num">19</div>
+            <div>
+              <h2>可解释性</h2>
+              <p class="lead">每次重排都应该能解释为什么某文档上升或下降。离线可用 SHAP，线上可用近似贡献和模板。</p>
+            </div>
+          </div>
+          <pre><code>{
+  "doc_id": "doc_123",
+  "rank_change": "+7",
+  "top_positive_features": [
+    ["date_overlap_count", 0.31],
+    ["metric_overlap_count", 0.24],
+    ["title_query_overlap", 0.18]
+  ],
+  "top_negative_features": [
+    ["duplicate_score", -0.09]
+  ],
+  "reason_template": "Promoted because it matches the query's quarter, metric, and title terms."
+}</code></pre>
+        </section>
+
+        <section id="repo">
+          <div class="section-head">
+            <div class="section-num">20</div>
+            <div>
+              <h2>建议仓库结构</h2>
+              <p class="lead">目录按职责拆开，避免训练、特征、服务、回归门禁互相缠在一起。</p>
+            </div>
+          </div>
+          <pre><code>qd_reranker/
+  configs/
+    feature_sets/
+    training/
+    promotion_gates/
+  data/
+    schemas/
+  features/
+    registry.py
+    primitives.py
+    extractors/
+  labels/
+    build_labels.py
+    llm_judge.py
+  training/
+    build_dataset.py
+    train_xgb_ranker.py
+    evaluate.py
+  regression/
+    cases/
+    run_regression_gate.py
+  serving/
+    rerank.py
+    explain.py
+  experiments/
+    ablation.py
+    feature_discovery.py
+  docs/
+    QD_RERANKER_SPEC.md</code></pre>
+        </section>
+
+        <section id="plan">
+          <div class="section-head">
+            <div class="section-num">21</div>
+            <div>
+              <h2>最小实施计划</h2>
+              <p class="lead">先把数据、基线、门禁做起来，再做自动发现。顺序反过来会产出很多不可验证的“聪明特征”。</p>
+            </div>
+          </div>
+          <div class="grid-3">
+            <div class="box">
+              <h3>Milestone 1: Data and Baselines</h3>
+              <ul>
+                <li>定义 <code>QueryDocExample</code>、<code>CandidateSnapshot</code>、<code>RegressionCase</code>。</li>
+                <li>从当前 retriever 导出 candidate snapshots。</li>
+                <li>构建 dense/sparse/RRF baselines。</li>
+                <li>创建 100 到 300 条 golden queries 和 50 条 failure regression cases。</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>Milestone 2: Feature Extraction</h3>
+              <ul>
+                <li>实现 V0 feature set。</li>
+                <li>保存带 feature set version 的 feature matrix。</li>
+                <li>增加 leakage checks 和 online-safe flags。</li>
+                <li>增加 feature health report。</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>Milestone 3: Ranking Model</h3>
+              <ul>
+                <li>按 <code>query_id</code> group 训练 XGBoost <code>rank:ndcg</code>。</li>
+                <li>与 retriever baselines 对比。</li>
+                <li>增加 <code>HPOEngine</code> adapter，V0 默认使用 <code>Optuna</code>。</li>
+                <li>先跑 tuned-parameter baseline，再把收益归因给新特征。</li>
+                <li>输出 global 和 slice metrics。</li>
+                <li>增加 regression gate。</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>Milestone 4: Feature Discovery</h3>
+              <ul>
+                <li>挖掘 failed query clusters。</li>
+                <li>生成 <code>FeatureRecipe</code> candidates。</li>
+                <li>用 scout-stage HPO 低成本过滤弱特征，只对 finalist 特征跑完整 HPO。</li>
+                <li>比较 A/B/C/D 四组：baseline features/params、tuned params、candidate feature、candidate feature plus tuned params。</li>
+                <li>运行 ablation 和 promotion gates。</li>
+                <li>维护 promoted/rejected/quarantined feature memory。</li>
+              </ul>
+            </div>
+            <div class="box">
+              <h3>Milestone 5: Serving</h3>
+              <ul>
+                <li>增加在线 rerank endpoint/function。</li>
+                <li>运行 shadow evaluation。</li>
+                <li>增加 explanation output。</li>
+                <li>启动有限 A/B。</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section id="checklist">
+          <div class="section-head">
+            <div class="section-num">22</div>
+            <div>
+              <h2>AI Implementation Checklist</h2>
+              <p class="lead">给 AI agent 的执行顺序。实现时按这个顺序走，少走弯路。</p>
+            </div>
+          </div>
+          <ol class="checklist">
+            <li>先创建 schemas。</li>
+            <li>围绕固定 candidate snapshots 构建 dataset builder。</li>
+            <li>通过 registry 实现 V0 features，不写散装特征代码。</li>
+            <li>用 <code>query_id</code> groups 训练 ranking model。</li>
+            <li>增加 HPO adapter，调用现有工具，不自己实现搜索算法。</li>
+            <li>先加入 validation 和 regression gates，再做自动特征发现。</li>
+            <li>gates 存在后才加入 feature discovery。</li>
+            <li>对新特征先比较 tuned baseline 和 tuned candidate，再决定 promotion。</li>
+            <li>A/B 前先做 shadow serving。</li>
+            <li>永远不要直接用 regression cases 训练。</li>
+            <li>永远不要把 post-generation signals 作为线上模型特征。</li>
+            <li>始终按 query slice 和 hard negative type 报告指标。</li>
+          </ol>
+        </section>
+
+        <section id="decisions">
+          <div class="section-head">
+            <div class="section-num">23</div>
+            <div>
+              <h2>待决问题</h2>
+              <p class="lead">实现前需要确认这些边界，否则训练和线上指标可能对不上。</p>
+            </div>
+          </div>
+          <ul>
+            <li>当前 retriever stack 是 dense only、BM25 only，还是 hybrid？</li>
+            <li>Retriever 输出 topN 取 50、100，还是 200？</li>
+            <li>Generator 消费 topK 取 5、8，还是 10？</li>
+            <li>标签来源优先级是否采用 <code>human > answer citation > LLM judge > user behavior</code>？</li>
+            <li>V0 HPO backend 选 <code>Optuna</code>、<code>FLAML</code>、<code>Ray Tune</code>，还是其他 adapter？</li>
+            <li>scout-stage 和 finalist-stage 的 HPO budget 各是多少？</li>
+            <li>Reranking path 的延迟预算是多少？</li>
+            <li>当前 document chunks 是否已有稳定 version IDs？</li>
+            <li>Query taxonomy 已存在，还是需要新建？</li>
+          </ul>
+        </section>
+
+        <section id="success">
+          <div class="section-head">
+            <div class="section-num">24</div>
+            <div>
+              <h2>成功标准</h2>
+              <p class="lead">V0 成功不是“模型能跑”，而是它能稳定打赢 baseline、不过回归、能解释，并且能让至少一个自动发现特征通过门禁。</p>
+            </div>
+          </div>
+          <ul>
+            <li>XGBoost reranker 在 validation nDCG@10 和 MRR@10 上击败 dense/sparse/RRF baselines。</li>
+            <li>Golden query set 不退化。</li>
+            <li>Failure regression set 能阻止已知坏 rerank。</li>
+            <li>Feature extraction p95 latency 在预算内。</li>
+            <li>至少一个自动发现特征通过 ablation 和 slice gates 被 promote。</li>
+            <li>Debug output 能解释一个文档为什么上升或下降。</li>
+          </ul>
+        </section>
+      </div>
+
+      <footer class="footer">
+        <p>源文件：QD_RERANKER_SPEC.md。此 HTML 为自包含中文说明页，流程图均使用内联 SVG 绘制。</p>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

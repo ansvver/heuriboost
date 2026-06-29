@@ -1,0 +1,15 @@
+cases:
+  - case_id: gross_margin_q3_wrong_year
+    query_id: q_example_001
+    query: "What caused 2024 Q3 gross margin decline?"
+    must_include_doc_ids:
+      - doc_2024_q3_earnings
+    must_not_include_doc_ids:
+      - doc_2023_q3_earnings
+    top_k: 3
+    failure_type: temporal_hard_negative
+    expected_evidence:
+      - "2024 Q3"
+      - "gross margin"
+      - "raw material costs"
+    notes: "Old-year document is semantically similar but cannot support the answer."

@@ -1,0 +1,13 @@
+promotion_gate:
+  global:
+    ndcg10_min_delta: 0.001
+    mrr10_min_delta: 0.000
+  regression:
+    critical_case_failures_max: 0
+    must_include_recall_at_k_drop_max: 0.000
+    must_not_include_at_k_increase_max: 0.000
+  slices:
+    hard_negative_at_5_max: 0
+  reliability:
+    required_columns_present: true
+    query_group_split_leakage_max: 0

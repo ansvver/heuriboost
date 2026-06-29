@@ -1,0 +1,33 @@
+query_id,query_text,doc_id,chunk_id,doc_text,dense_rank,dense_score,sparse_rank,sparse_score,label,split
+q_train_arr_2024_q2,Why did ARR expand in 2024 Q2?,doc_2024_q2_arr,chunk_001,2024 Q2 ARR expanded because enterprise renewals increased and expansion bookings improved.,3,0.82,1,15.1,3,train
+q_train_arr_2024_q2,Why did ARR expand in 2024 Q2?,doc_2023_q2_arr,chunk_002,2023 Q2 ARR expanded because a pricing migration increased annual recurring revenue.,1,0.91,2,14.7,-1,train
+q_train_arr_2024_q2,Why did ARR expand in 2024 Q2?,doc_2024_q2_revenue,chunk_003,2024 Q2 revenue improved with renewals but this section only summarizes total revenue.,2,0.86,3,12.4,2,train
+q_train_arr_2024_q2,Why did ARR expand in 2024 Q2?,doc_office_policy,chunk_004,The office policy describes visitor badges and conference room bookings.,4,0.29,4,3.1,0,train
+q_train_revenue_2025_q1,What drove revenue growth in 2025 Q1?,doc_2025_q1_revenue,chunk_001,2025 Q1 revenue growth was driven by new enterprise customers and higher usage in platform accounts.,3,0.81,1,14.8,3,train
+q_train_revenue_2025_q1,What drove revenue growth in 2025 Q1?,doc_2024_q1_revenue,chunk_002,2024 Q1 revenue growth was driven by international channel expansion and migration services.,1,0.90,2,14.1,-1,train
+q_train_revenue_2025_q1,What drove revenue growth in 2025 Q1?,doc_2025_q1_customer_metrics,chunk_003,2025 Q1 customer metrics show enterprise additions and usage expansion across accounts.,2,0.85,3,12.6,2,train
+q_train_revenue_2025_q1,What drove revenue growth in 2025 Q1?,doc_security_policy,chunk_004,The security policy explains access reviews and password rotation requirements.,4,0.31,4,2.9,0,train
+q_train_cashflow_2023_q4,Why did operating cash flow decline in 2023 Q4?,doc_2023_q4_cashflow,chunk_001,2023 Q4 operating cash flow declined because inventory purchases rose and customer collections slowed.,3,0.83,1,15.3,3,train
+q_train_cashflow_2023_q4,Why did operating cash flow decline in 2023 Q4?,doc_2022_q4_cashflow,chunk_002,2022 Q4 operating cash flow declined because tax payments increased and collections were delayed.,1,0.92,2,14.9,-1,train
+q_train_cashflow_2023_q4,Why did operating cash flow decline in 2023 Q4?,doc_2023_q4_balance_sheet,chunk_003,2023 Q4 balance sheet commentary mentions inventory growth and receivables but not the cash flow bridge.,2,0.86,3,12.0,2,train
+q_train_cashflow_2023_q4,Why did operating cash flow decline in 2023 Q4?,doc_brand_guidelines,chunk_004,Brand guidelines define logo spacing color usage and typography rules.,4,0.28,4,3.2,0,train
+q_train_eps_2024_q1,What caused EPS pressure in 2024 Q1?,doc_2024_q1_eps,chunk_001,2024 Q1 EPS pressure came from higher interest expense and increased share based compensation.,3,0.80,1,14.5,3,train
+q_train_eps_2024_q1,What caused EPS pressure in 2024 Q1?,doc_2023_q1_eps,chunk_002,2023 Q1 EPS pressure came from restructuring charges and lower foreign exchange gains.,1,0.89,2,13.9,-1,train
+q_train_eps_2024_q1,What caused EPS pressure in 2024 Q1?,doc_2024_q1_income_statement,chunk_003,2024 Q1 income statement shows interest expense increased and diluted shares changed.,2,0.84,3,12.2,2,train
+q_train_eps_2024_q1,What caused EPS pressure in 2024 Q1?,doc_api_reference,chunk_004,The API reference lists authentication headers pagination and retry semantics.,4,0.26,4,2.8,0,train
+q_train_inventory_2024_q2,Why did inventory rise in 2024 Q2?,doc_2024_q2_inventory,chunk_001,2024 Q2 inventory rose because the company built safety stock for a second half product launch.,3,0.82,1,15.0,3,train
+q_train_inventory_2024_q2,Why did inventory rise in 2024 Q2?,doc_2023_q2_inventory,chunk_002,2023 Q2 inventory rose because ocean freight delays shifted receipts into the quarter.,1,0.91,2,14.3,-1,train
+q_train_inventory_2024_q2,Why did inventory rise in 2024 Q2?,doc_2024_q2_supply_chain,chunk_003,2024 Q2 supply chain notes mention safety stock and launch preparation.,2,0.85,3,12.5,2,train
+q_train_inventory_2024_q2,Why did inventory rise in 2024 Q2?,doc_benefits_faq,chunk_004,The benefits FAQ explains health plan enrollment and commuter benefits.,4,0.27,4,2.7,0,train
+q_train_margin_2024_q1,What explains 2024 Q1 gross margin improvement?,doc_2024_q1_margin,chunk_001,2024 Q1 gross margin improved because cloud hosting costs declined and premium mix increased.,3,0.83,1,15.2,3,train
+q_train_margin_2024_q1,What explains 2024 Q1 gross margin improvement?,doc_2023_q1_margin,chunk_002,2023 Q1 gross margin improved because warranty costs declined and logistics normalized.,1,0.90,2,14.4,-1,train
+q_train_margin_2024_q1,What explains 2024 Q1 gross margin improvement?,doc_2024_q1_operations,chunk_003,2024 Q1 operations commentary mentions lower hosting costs and premium product mix.,2,0.86,3,12.8,2,train
+q_train_margin_2024_q1,What explains 2024 Q1 gross margin improvement?,doc_procurement_policy,chunk_004,The procurement policy describes vendor onboarding and approval thresholds.,4,0.25,4,2.6,0,train
+q_val_margin_2024_q3,What caused 2024 Q3 gross margin decline?,doc_2024_q3_margin,chunk_001,2024 Q3 gross margin declined because raw material costs increased and freight expense rose.,3,0.82,1,15.1,3,validation
+q_val_margin_2024_q3,What caused 2024 Q3 gross margin decline?,doc_2023_q3_margin,chunk_002,2023 Q3 gross margin declined because discounting increased and warranty accruals were higher.,1,0.93,2,14.9,-1,validation
+q_val_margin_2024_q3,What caused 2024 Q3 gross margin decline?,doc_2024_q3_operations,chunk_003,2024 Q3 operations commentary mentions raw material inflation and freight pressure.,2,0.86,3,12.7,2,validation
+q_val_margin_2024_q3,What caused 2024 Q3 gross margin decline?,doc_employee_handbook,chunk_004,The employee handbook covers vacation accrual remote work and equipment reimbursement.,4,0.24,4,2.5,0,validation
+q_test_churn_2025_q1,Why did churn increase in 2025 Q1?,doc_2025_q1_churn,chunk_001,2025 Q1 churn increased because small business customers consolidated vendors after price increases.,3,0.81,1,14.6,3,test
+q_test_churn_2025_q1,Why did churn increase in 2025 Q1?,doc_2024_q1_churn,chunk_002,2024 Q1 churn increased because onboarding delays affected mid market customers.,1,0.90,2,14.0,-1,test
+q_test_churn_2025_q1,Why did churn increase in 2025 Q1?,doc_2025_q1_customer_success,chunk_003,2025 Q1 customer success notes mention small business consolidation and price sensitivity.,2,0.84,3,12.3,2,test
+q_test_churn_2025_q1,Why did churn increase in 2025 Q1?,doc_it_runbook,chunk_004,The IT runbook describes backup windows alert routing and escalation paths.,4,0.22,4,2.4,0,test
