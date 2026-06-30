@@ -143,6 +143,13 @@ user-facing path needs only two tables:
 - `production_cases.csv`: online failures or feedback rows, with minimal
   columns `query,shown_doc_text,user_verdict`.
 
+If your material starts as messy logs, spreadsheets, tickets, labels, or
+CSV/JSON/JSONL exports, use the AI-facing input builder spec in
+`skills/reckless-input-builder/`. It tells an agent how to map raw retrieval
+candidates, accepted/rejected documents, ranks, scores, and user feedback into
+these two files, how to choose full vs weak acceptance, and how to validate the
+result with `compile_cases.py`.
+
 The repair compiler expands those two tables into the internal
 `query_doc_examples.csv`, `regression_cases.yaml`, and `case_sets/` artifacts
 under `output/.heuriboost/compiled/`. Those files are audit/debug output, not
@@ -214,6 +221,7 @@ Done:
 - [x] `case_sets` mining loop: mine similar failures, fold into training, isolated from cases
 - [x] `--reckless` loop: fold case_sets directly into training and require test nDCG@10 + MRR@10 to beat the anchor
 - [x] Two-table production repair flow: `base_dataset` + `production_cases` compile, repair, and explicit promote
+- [x] AI-friendly reckless input builder skill for turning raw user materials into compliant repair inputs
 - [x] End-to-end FiQA-2018 demo (committed CSV, offline builder, both label modes)
 - [x] Codex-compatible agent skill (`audit` / `bootstrap` / `experiment`)
 
@@ -256,7 +264,8 @@ Full definitions are in
 │   ├── REFERENCE.md                  contracts + commands (operational reference)
 │   └── specs/                        long-form design specs
 ├── examples/fiqa/                    the committed FiQA demo + cases + ledger
-└── skills/heuriboost-rag/            the Codex skill + runnable scripts + templates
+├── skills/heuriboost-rag/            the Codex skill + runnable scripts + templates
+└── skills/reckless-input-builder/    AI-facing spec for building reckless inputs
 ```
 
 There is no `pyproject.toml` yet — run the skill-local scripts directly.

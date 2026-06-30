@@ -93,6 +93,55 @@
         "regressed": true
       },
       "case_sets_used": true
+    },
+    {
+      "round_id": "2026-06-30T16:12:11Z",
+      "split": "test",
+      "global": {
+        "ndcg@10": 0.8015285689469713,
+        "mrr@10": 0.8625
+      },
+      "cases": [
+        {
+          "case_id": "fiqa_aggressive_roth_401k_taxable",
+          "status": "reckless",
+          "original_status": "pending",
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_business_expenses_no_income",
+          "status": "reckless",
+          "original_status": "pending",
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_combined_contribution_limits",
+          "status": "reckless",
+          "original_status": "pending",
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_solicitation_of_security",
+          "status": "reckless",
+          "original_status": "pending",
+          "passed": false
+        }
+      ],
+      "vs_anchor": {
+        "ndcg@10": -0.05190552933257109,
+        "ndcg@10_regressed": true,
+        "mrr@10": -0.011458333333333348,
+        "mrr@10_regressed": true,
+        "regressed": true
+      },
+      "case_sets_used": true,
+      "reckless_mode": true,
+      "reckless_source_case_ids": [
+        "fiqa_aggressive_roth_401k_taxable",
+        "fiqa_business_expenses_no_income",
+        "fiqa_combined_contribution_limits",
+        "fiqa_solicitation_of_security"
+      ]
     }
   ]
 }
