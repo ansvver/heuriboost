@@ -136,15 +136,11 @@ anchor，否则硬失败。
 
 ```mermaid
 flowchart LR
-    A["线上 case 流入"] --> B["登记原始 regression case"]
-    B --> C["收集或挖掘 case_sets 样本"]
-    C --> D["train_reranker.py --reckless"]
-    D --> E["eval_reranker.py --split test --reckless"]
-    E --> F{"逐条 source case 通过?"}
-    F -- 否 --> G["硬失败并继续迭代"]
-    F -- 是 --> H{"test nDCG@10 和 MRR@10 超过 anchor?"}
-    H -- 否 --> G
-    H -- 是 --> I["接受本轮；必要时刷新 anchor"]
+    A["线上 case + case_sets"] --> B["--reckless 训练"]
+    B --> C["--reckless 评估 test"]
+    C --> D{"逐条 case 通过且 test 超过 anchor?"}
+    D -- 是 --> E["接受本轮"]
+    D -- 否 --> F["硬失败并继续迭代"]
 ```
 
 报告写入 `examples/fiqa/output/reports/`（被 git 忽略）。要用自己的数据，参考

@@ -149,15 +149,11 @@ test `nDCG@10` and `MRR@10` both beat the ledger anchor.
 
 ```mermaid
 flowchart LR
-    A["Production case stream"] --> B["Add original regression case"]
-    B --> C["Collect or mine case_sets rows"]
-    C --> D["train_reranker.py --reckless"]
-    D --> E["eval_reranker.py --split test --reckless"]
-    E --> F{"Every source case passes?"}
-    F -- no --> G["Hard fail and iterate"]
-    F -- yes --> H{"test nDCG@10 and MRR@10 > anchor?"}
-    H -- no --> G
-    H -- yes --> I["Accept round; optionally refresh anchor"]
+    A["Production cases + case_sets"] --> B["Train with --reckless"]
+    B --> C["Evaluate test with --reckless"]
+    C --> D{"Cases pass and test beats anchor?"}
+    D -- yes --> E["Accept round"]
+    D -- no --> F["Hard fail and iterate"]
 ```
 
 Reports land in `examples/fiqa/output/reports/` (gitignored). To bring your own
