@@ -133,6 +133,33 @@ python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_
 python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --split test --reckless
 ```
 
+### Reckless mode: production-case fast repair
+
+`--reckless` is the online-learning-style repair lane for production cases.
+When real traffic keeps producing failures, capture the original failures as
+regression cases, collect or mine their related `case_sets`, then train with
+those `case_sets` folded directly into the train split. This intentionally lets
+the model absorb the new cases quickly, even if the local fix is close to
+"overfitting" the observed production problem.
+
+The mode is still strict at acceptance time. `case_sets` are training input, not
+the exam. `eval_reranker.py --reckless --split test` re-checks the original
+source cases one by one through their regression rules, then hard-fails unless
+test `nDCG@10` and `MRR@10` both beat the ledger anchor.
+
+```mermaid
+flowchart LR
+    A["Production case stream"] --> B["Add original regression case"]
+    B --> C["Collect or mine case_sets rows"]
+    C --> D["train_reranker.py --reckless"]
+    D --> E["eval_reranker.py --split test --reckless"]
+    E --> F{"Every source case passes?"}
+    F -- no --> G["Hard fail and iterate"]
+    F -- yes --> H{"test nDCG@10 and MRR@10 > anchor?"}
+    H -- no --> G
+    H -- yes --> I["Accept round; optionally refresh anchor"]
+```
+
 Reports land in `examples/fiqa/output/reports/` (gitignored). To bring your own
 data, follow the [CSV contract](./docs/REFERENCE.md#csv-contract); for the full
 failure-attack loop, ledger, and skill modes see the

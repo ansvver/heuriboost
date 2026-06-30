@@ -122,6 +122,31 @@ python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_
 python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --split test --reckless
 ```
 
+### 鲁莽模式：生产 case 快速修复通道
+
+`--reckless` 可以看作一种在线学习式的生产 case 修复通道。线上源源不断出现失败
+case 时，先把原始失败写成 regression case，再收集或挖掘它关联的 `case_sets`，
+然后把这些 `case_sets` 直接折叠进 train 训练。这个模式允许模型快速吸收新 case，
+必要时可以有意识地“过拟合”当前已经观察到的生产问题。
+
+但鲁莽不等于放松验收。`case_sets` 是训练输入，不是考题本身。
+`eval_reranker.py --reckless --split test` 会按 `source_case_id` 回到原始
+regression case 逐条验收；同时要求 test 的 `nDCG@10` 和 `MRR@10` 都超过 ledger
+anchor，否则硬失败。
+
+```mermaid
+flowchart LR
+    A["线上 case 流入"] --> B["登记原始 regression case"]
+    B --> C["收集或挖掘 case_sets 样本"]
+    C --> D["train_reranker.py --reckless"]
+    D --> E["eval_reranker.py --split test --reckless"]
+    E --> F{"逐条 source case 通过?"}
+    F -- 否 --> G["硬失败并继续迭代"]
+    F -- 是 --> H{"test nDCG@10 和 MRR@10 超过 anchor?"}
+    H -- 否 --> G
+    H -- 是 --> I["接受本轮；必要时刷新 anchor"]
+```
+
 报告写入 `examples/fiqa/output/reports/`（被 git 忽略）。要用自己的数据，参考
 [CSV 契约](./docs/REFERENCE.zh-CN.md#csv-契约)；完整的失败攻击循环、ledger 和
 skill 模式见[参考手册](./docs/REFERENCE.zh-CN.md)。
