@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 4
+- **Total Sessions**: 5
 - **Last Active**: 2026-06-30
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~140 | Active |
+| `journal-1.md` | ~173 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 5 | 2026-06-30 | Production case repair entrypoint | `a146d5a` | `main` |
 | 4 | 2026-06-30 | Reckless mode repair lane | `8e69c7e`, `ef2231a` | `main` |
 | 3 | 2026-06-29 | case_sets mining + settlement loop (V1 step 2) | `ac6aefc` | `main` |
 | 2 | 2026-06-29 | Case state machine (gate/pending/retired) + cross-round ledger | `5dd09b3` | `main` |

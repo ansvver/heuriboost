@@ -138,3 +138,36 @@ Implemented reckless mode for FiQA reranker acceptance, documented the productio
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Production case repair entrypoint
+
+**Date**: 2026-06-30
+**Task**: Production case repair entrypoint
+**Branch**: `main`
+
+### Summary
+
+Added the two-table production repair workflow: compile_cases, repair_reranker, promote_repair, repair fixtures, docs, and backend contracts. Verified strict compile, auto-split, hard-fail, controlled success, promotion success/refusal, unchanged repository ledger, and standard FiQA train/eval.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a146d5a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
