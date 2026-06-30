@@ -65,14 +65,36 @@ def _round_summary(cases: list[dict]) -> dict:
     gate = [c for c in cases if c.get("status") == "gate"]
     pending = [c for c in cases if c.get("status") == "pending"]
     retired = [c for c in cases if c.get("status") == "retired"]
+    reckless = [c for c in cases if c.get("status") == "reckless"]
     return {
         "gate_pass": sum(1 for c in gate if c.get("passed")),
         "gate_total": len(gate),
         "pending_pass": sum(1 for c in pending if c.get("passed")),
         "pending_total": len(pending),
         "retired_total": len(retired),
+        "reckless_pass": sum(1 for c in reckless if c.get("passed")),
+        "reckless_total": len(reckless),
         "promotion_candidates": [c["case_id"] for c in pending if c.get("passed")],
     }
+
+
+def _anchor_comparison(global_metrics: dict, anchor: dict | None) -> dict | None:
+    if anchor is None:
+        return None
+
+    anchor_global = anchor.get("global", {})
+    comparison = {}
+    regressed = False
+    for metric in ("ndcg@10", "mrr@10"):
+        anchor_value = float(anchor_global.get(metric, 0.0))
+        round_value = float(global_metrics.get(metric, 0.0))
+        delta = round_value - anchor_value
+        metric_regressed = round_value < anchor_value - EPS
+        comparison[metric] = delta
+        comparison[f"{metric}_regressed"] = metric_regressed
+        regressed = regressed or metric_regressed
+    comparison["regressed"] = regressed
+    return comparison
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +107,8 @@ def record(
     split: str,
     ledger_path: str | Path = DEFAULT_LEDGER_PATH,
     case_sets_used: bool = False,
+    reckless_mode: bool = False,
+    reckless_source_case_ids: list[str] | None = None,
 ) -> dict:
     """Append a round snapshot to the ledger.
 
@@ -104,6 +128,11 @@ def record(
         Whether this round's model was trained with mined case_sets folded
         into the train split. Stored in the round snapshot so the summary
         can surface it.
+    reckless_mode : bool
+        Whether this round used reckless-mode acceptance semantics.
+    reckless_source_case_ids : list[str] | None
+        Source case IDs from case_sets that were evaluated as reckless
+        acceptance cases.
 
     Returns
     -------
@@ -118,19 +147,13 @@ def record(
         {
             "case_id": result.get("case_id"),
             "status": result.get("status", "gate"),
+            "original_status": result.get("original_status"),
             "passed": bool(result.get("passed", False)),
         }
         for result in case_results
     ]
 
-    vs_anchor = None
-    anchor = ledger.get("anchor")
-    if anchor is not None:
-        anchor_ndcg = float(anchor.get("global", {}).get("ndcg@10", 0.0))
-        round_ndcg = float(global_metrics.get("ndcg@10", 0.0))
-        delta = round_ndcg - anchor_ndcg
-        regressed = round_ndcg < anchor_ndcg - EPS
-        vs_anchor = {"ndcg@10": delta, "regressed": regressed}
+    vs_anchor = _anchor_comparison(global_metrics, ledger.get("anchor"))
 
     round_snapshot = {
         "round_id": round_id,
@@ -142,6 +165,8 @@ def record(
         "cases": case_entries,
         "vs_anchor": vs_anchor,
         "case_sets_used": bool(case_sets_used),
+        "reckless_mode": bool(reckless_mode),
+        "reckless_source_case_ids": reckless_source_case_ids or [],
     }
 
     ledger["rounds"].append(round_snapshot)
@@ -211,8 +236,15 @@ def summary(ledger_path: str | Path = DEFAULT_LEDGER_PATH) -> None:
     )
     if latest.get("case_sets_used"):
         print(f"Round {latest['round_id']}: used case_sets (mined samples in train)")
+    if latest.get("reckless_mode"):
+        print(f"Round {latest['round_id']}: reckless mode")
+        source_ids = latest.get("reckless_source_case_ids") or []
+        if source_ids:
+            print(f"Reckless source cases: {', '.join(source_ids)}")
     print(f"Gates: {tally['gate_pass']}/{tally['gate_total']} pass")
     print(f"Pending: {tally['pending_pass']}/{tally['pending_total']} pass")
+    if tally["reckless_total"]:
+        print(f"Reckless acceptance: {tally['reckless_pass']}/{tally['reckless_total']} pass")
     print(f"Retired: {tally['retired_total']}")
 
     if tally["promotion_candidates"]:
@@ -229,7 +261,8 @@ def summary(ledger_path: str | Path = DEFAULT_LEDGER_PATH) -> None:
     elif vs_anchor is not None:
         regressed_str = "REGRESSED" if vs_anchor.get("regressed") else "ok"
         print(
-            f"B vs anchor: nDCG@10 delta={vs_anchor['ndcg@10']:+.4f} "
+            f"B vs anchor: nDCG@10 delta={vs_anchor.get('ndcg@10', 0.0):+.4f}, "
+            f"MRR@10 delta={vs_anchor.get('mrr@10', 0.0):+.4f} "
             f"({regressed_str})"
         )
     else:
@@ -289,7 +322,8 @@ def promote(
     if vs is not None:
         regressed_str = "REGRESSED" if vs.get("regressed") else "ok"
         print(
-            f"  B vs anchor: nDCG@10 delta={vs['ndcg@10']:+.4f} ({regressed_str})"
+            f"  B vs anchor: nDCG@10 delta={vs.get('ndcg@10', 0.0):+.4f}, "
+            f"MRR@10 delta={vs.get('mrr@10', 0.0):+.4f} ({regressed_str})"
         )
     else:
         print("  B vs anchor: no anchor")

@@ -48,6 +48,13 @@ Train with mined case_sets folded into the train split (V1 step 2 closed loop):
 python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --case-sets examples/fiqa/case_sets --regression-cases examples/fiqa/regression_cases.yaml
 ```
 
+Reckless variant:
+
+```bash
+python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --reckless
+python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --split test --reckless
+```
+
 Evaluate and run regression gates:
 
 ```bash
@@ -281,6 +288,10 @@ qd_reranker/
   enforce B+C isolation. Case ROWS never enter training. `case_sets` (mined
   samples) ARE training data, B+C isolated from cases. `train_reranker.py`
   still never reads `ledger.json`.
+- `--reckless` is an explicit CLI mode. It defaults `--case-sets` to
+  `examples/fiqa/case_sets` when omitted, requires `eval_reranker.py --split test`
+  with an existing ledger anchor, and accepts only when the source regression
+  cases still pass and test `nDCG@10` / `MRR@10` both beat the anchor.
 - `eval_reranker.py --case-sets-used` tags the ledger round; `summary()`
   prints "round N used case_sets" when true.
 - `case_sets` are committed under `examples/fiqa/case_sets/` (derived,

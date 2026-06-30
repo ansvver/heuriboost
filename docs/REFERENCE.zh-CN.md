@@ -230,7 +230,18 @@ python skills/heuriboost-rag/scripts/regression_ledger.py promote examples/fiqa/
 ```
 
 与锚定基线的对比是**报告，不自动阻断** —— 晋级永远是人工决定。`eval_reranker.py`
-加 `--no-ledger` 可跳过 ledger 写入（临时评估用）。
+加 `--no-ledger` 可跳过 ledger 写入（临时评估用）。`--reckless` 是显式
+变体：`train_reranker.py --reckless` 会在省略 `--case-sets` 时默认使用
+`examples/fiqa/case_sets`；`eval_reranker.py --reckless --split test` 会硬失败，
+除非 ledger anchor 存在、test split 存在、所有引用到的 `source_case_id`
+仍按原始 regression rule 通过，并且 test 的 `nDCG@10` 与 `MRR@10` 都超过
+anchor。
+
+空的 `case_sets` 输入是允许的；在鲁莽模式下，这意味着没有 source case 需要
+重新验收，但 test 的 anchor 对比仍然会执行。
+
+默认流里的锚定基线对比仍然只是“报告，不自动阻断”；鲁莽模式则更严格，若
+test 的 `nDCG@10` 或 `MRR@10` 没有超过 anchor，就直接失败。
 
 ## 闭环：case_sets 挖掘
 
@@ -254,6 +265,12 @@ python skills/heuriboost-rag/scripts/train_reranker.py \
   --case-sets examples/fiqa/case_sets \
   --regression-cases examples/fiqa/regression_cases.yaml
 
+# 2b. 鲁莽变体：省略 --case-sets 时默认用 examples/fiqa/case_sets
+python skills/heuriboost-rag/scripts/train_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir examples/fiqa/output \
+  --reckless
+
 # 3. 评估 + 记账（标记该轮使用了 case_sets）
 python skills/heuriboost-rag/scripts/eval_reranker.py \
   examples/fiqa/query_doc_examples.csv \
@@ -261,6 +278,13 @@ python skills/heuriboost-rag/scripts/eval_reranker.py \
   --split validation \
   --regression-cases examples/fiqa/regression_cases.yaml \
   --case-sets-used
+
+# 3b. 鲁莽验收：评估 test，并要求超过 anchor
+python skills/heuriboost-rag/scripts/eval_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir examples/fiqa/output \
+  --split test \
+  --reckless
 
 # 4. （手动）若 pending case 通过且基线检查 OK，手动 promote
 python skills/heuriboost-rag/scripts/regression_ledger.py promote \

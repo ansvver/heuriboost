@@ -126,6 +126,13 @@ python3 skills/heuriboost-rag/scripts/train_reranker.py  examples/fiqa/query_doc
 python3 skills/heuriboost-rag/scripts/eval_reranker.py   examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
 ```
 
+To run the reckless closed-loop variant:
+
+```bash
+python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --reckless
+python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --split test --reckless
+```
+
 Reports land in `examples/fiqa/output/reports/` (gitignored). To bring your own
 data, follow the [CSV contract](./docs/REFERENCE.md#csv-contract); for the full
 failure-attack loop, ledger, and skill modes see the
@@ -148,6 +155,7 @@ Done:
 - [x] Per-case checks (`require_rank`, `min_ndcg10`) + overall-quality check
 - [x] Cross-round ledger with a manually-anchored baseline
 - [x] `case_sets` mining loop: mine similar failures, fold into training, isolated from cases
+- [x] `--reckless` loop: fold case_sets directly into training and require test nDCG@10 + MRR@10 to beat the anchor
 - [x] End-to-end FiQA-2018 demo (committed CSV, offline builder, both label modes)
 - [x] Codex-compatible agent skill (`audit` / `bootstrap` / `experiment`)
 

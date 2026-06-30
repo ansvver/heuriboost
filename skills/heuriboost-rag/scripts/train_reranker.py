@@ -12,6 +12,7 @@ from common import (
     extract_features,
     group_sizes,
     load_dataset,
+    load_case_sets,
     relevance_labels,
     require_dependencies,
     split_frame,
@@ -47,44 +48,6 @@ def load_case_denylist(cases_path: str) -> tuple[set[str], set[str]]:
             for did in case.get(key, []) or []:
                 case_doc_ids.add(str(did))
     return case_query_ids, case_doc_ids
-
-
-def load_case_sets(case_sets_path: str) -> "list":
-    """Load case_set CSV rows from a file or directory of *.csv files.
-
-    Returns a list of DataFrame rows (as a concatenated DataFrame). The
-    ``source_case_id`` column (if present) is dropped — it is for
-    traceability, not training. The ``split`` column is NOT trusted here;
-    the caller forces it to "train".
-    """
-    from common import load_pandas
-    pd = load_pandas()
-
-    path = Path(case_sets_path)
-    if not path.exists():
-        raise SystemExit(f"--case-sets path not found: {path}")
-
-    csv_files: list[Path] = []
-    if path.is_dir():
-        csv_files = sorted(path.glob("*.csv"))
-        if not csv_files:
-            raise SystemExit(f"--case-sets directory has no .csv files: {path}")
-    else:
-        csv_files = [path]
-
-    frames = []
-    for csv_file in csv_files:
-        frame = pd.read_csv(csv_file)
-        if frame.empty:
-            continue
-        frames.append(frame)
-    if not frames:
-        return pd.DataFrame()
-    combined = pd.concat(frames, ignore_index=True)
-    # Drop the traceability column; it is not a training feature.
-    if "source_case_id" in combined.columns:
-        combined = combined.drop(columns=["source_case_id"])
-    return combined
 
 
 def assert_case_set_isolation(case_set_df, case_query_ids: set[str], case_doc_ids: set[str]) -> None:
@@ -135,13 +98,22 @@ def main() -> None:
     )
     parser.add_argument("--rounds", type=int, default=40, help="Boosting rounds")
     parser.add_argument(
+        "--reckless",
+        action="store_true",
+        help=(
+            "Train in reckless mode: fold case_sets directly into train and "
+            "record reckless metadata."
+        ),
+    )
+    parser.add_argument(
         "--case-sets",
         default=None,
         help=(
             "Path to a case_set CSV or a directory of case_set CSVs (mined "
             "training samples). When set, rows are merged into the TRAIN split "
             "only. A defensive B+C isolation re-check is run against the case "
-            "denylist (requires --regression-cases)."
+            "denylist (requires --regression-cases). In reckless mode, this "
+            "defaults to examples/fiqa/case_sets when omitted."
         ),
     )
     parser.add_argument(
@@ -151,10 +123,17 @@ def main() -> None:
             "Path to regression_cases.yaml. ONLY used to load the case "
             "query_id/doc_id denylist for the B+C isolation re-check when "
             "--case-sets is set. Case ROWS never enter training. Without "
-            "--case-sets, this flag is ignored."
+            "--case-sets, this flag is ignored. In reckless mode, this defaults "
+            "to examples/fiqa/regression_cases.yaml when omitted."
         ),
     )
     args = parser.parse_args()
+
+    if args.reckless:
+        if not args.case_sets:
+            args.case_sets = "examples/fiqa/case_sets"
+        if not args.regression_cases:
+            args.regression_cases = "examples/fiqa/regression_cases.yaml"
 
     require_dependencies("numpy", "xgboost")
     import xgboost as xgb
@@ -243,6 +222,7 @@ def main() -> None:
         "train_groups": int(train_df["query_id"].nunique()),
         "validation_groups": int(valid_df["query_id"].nunique()),
         "case_sets_used": case_sets_used,
+        "reckless_mode": bool(args.reckless),
     }
     write_json(models_dir / "reranker_metadata.json", metadata)
 

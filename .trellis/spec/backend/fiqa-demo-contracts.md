@@ -111,6 +111,83 @@ must_include rank <= require_rank AND no must_not_include in top_k AND (if
 the roadmap of gaps. Auto-blocking on pending would make the demo red by design;
 silently passing them would hide the roadmap. Promotion pending->gate is MANUAL.
 
+## Contract: reckless mode hard-fails on anchor/test mismatch
+
+**What** (added 2026-06-30): `train_reranker.py --reckless` folds mined
+`case_sets` directly into train and defaults `--case-sets` to
+`examples/fiqa/case_sets` when omitted. `eval_reranker.py --reckless` is a
+strict acceptance path:
+- it only runs on `--split test`
+- it requires the ledger anchor to exist
+- it loads `case_sets` with raw `source_case_id`
+- it maps each `source_case_id` back to the original regression case and
+  reuses that case's original pass/fail rule
+- it fails if the test split is missing
+- it fails unless test `nDCG@10` and `MRR@10` both beat the anchor
+
+**Why**: reckless mode is the production-line repair path. The training data is
+the mined case_sets, but acceptance must still prove that the original case is
+fixed and that the test holdout improved over the frozen baseline.
+
+**Ledger**: round snapshots record `reckless_mode`,
+`reckless_source_case_ids`, and anchor deltas for both `ndcg@10` and
+`mrr@10`.
+
+## Scenario: reckless acceptance and round snapshots
+
+### 1. Scope / Trigger
+- Trigger: new `--reckless` command path across train/eval plus ledger snapshot
+  metadata.
+
+### 2. Signatures
+```bash
+python3 skills/heuriboost-rag/scripts/train_reranker.py <query_doc_examples.csv> --reckless
+python3 skills/heuriboost-rag/scripts/eval_reranker.py <query_doc_examples.csv> --split test --reckless
+```
+
+### 3. Contracts
+- `--reckless` on train defaults `--case-sets` to `examples/fiqa/case_sets`
+  and `--regression-cases` to `examples/fiqa/regression_cases.yaml` when
+  omitted.
+- `--reckless` on eval defaults `--case-sets` the same way and hard-fails if
+  `--split` is not `test`.
+- Eval in reckless mode requires a ledger anchor and compares test
+  `nDCG@10`/`MRR@10` against it.
+- Ledger round snapshots record `reckless_mode`, `reckless_source_case_ids`,
+  and anchor deltas for both `nDCG@10` and `MRR@10`.
+
+### 4. Validation & Error Matrix
+- missing anchor -> `SystemExit: Reckless mode requires a ledger anchor...`
+- missing test split -> `SystemExit: Reckless mode requires a non-empty test split.`
+- missing `source_case_id` in case_sets -> `SystemExit: Reckless mode requires case_sets rows to preserve source_case_id.`
+- referenced case_id missing from regression cases -> `SystemExit: Reckless mode case_sets reference missing regression case_id(s): ...`
+- test `nDCG@10` or `MRR@10` not above anchor -> `SystemExit: Reckless acceptance failed: ...`
+
+### 5. Good/Base/Bad Cases
+- Good: train with `--reckless`, then eval `--split test --reckless` after
+  setting the ledger anchor; acceptance passes only when the source cases and
+  test metrics improve.
+- Base: normal `train_reranker.py` / `eval_reranker.py` behavior stays
+  unchanged.
+- Bad: use `--reckless` without a test split or without an anchor; the command
+  hard-fails.
+
+### 6. Tests Required
+- `python3 -m py_compile skills/heuriboost-rag/scripts/*.py`
+- normal eval smoke on validation
+- reckless eval smoke on test with no anchor hard-failing
+- reckless eval smoke on test with anchor hard-failing unless both metrics beat anchor
+
+### 7. Wrong vs Correct
+#### Wrong
+`case_sets` rows are treated as the acceptance unit and the round is accepted
+purely because the mined rows pass.
+
+#### Correct
+`case_sets` are training input only; acceptance replays the original regression
+case rule per `source_case_id` and requires test `nDCG@10` and `MRR@10` to beat
+the anchor.
+
 ## Contract: the ledger is never a training input (anti-leak extension)
 
 **What**: `examples/fiqa/ledger.json` (committed, NOT gitignored, NOT

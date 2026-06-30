@@ -308,3 +308,36 @@ def copy_regression_cases(source: str | Path | None, output_dir: str | Path) -> 
         raise SystemExit(f"Regression cases file not found: {src}")
     dst = Path(output_dir) / "regression_cases.yaml"
     dst.write_text(src.read_text())
+
+
+def load_case_sets(case_sets_path: str | Path, *, drop_source_case_id: bool = True):
+    pd = load_pandas()
+    path = Path(case_sets_path)
+    if not path.exists():
+        raise SystemExit(f"--case-sets path not found: {path}")
+
+    if path.is_dir():
+        csv_files = sorted(path.glob("*.csv"))
+        if not csv_files:
+            return pd.DataFrame()
+    else:
+        csv_files = [path]
+
+    frames = []
+    for csv_file in csv_files:
+        if csv_file.stat().st_size == 0:
+            frame = pd.DataFrame()
+        else:
+            try:
+                frame = pd.read_csv(csv_file)
+            except Exception as exc:
+                raise SystemExit(f"Failed to read case_set CSV {csv_file}: {exc}") from exc
+        frames.append(frame)
+
+    if not frames:
+        return pd.DataFrame()
+
+    combined = pd.concat(frames, ignore_index=True)
+    if drop_source_case_id and "source_case_id" in combined.columns:
+        combined = combined.drop(columns=["source_case_id"])
+    return combined

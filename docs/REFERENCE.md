@@ -221,6 +221,16 @@ cases:
 If a `gate` case fails, `eval_reranker.py` exits non-zero. `pending` failures
 are reported but do not change the exit code.
 
+`--reckless` is an explicit variant: `train_reranker.py --reckless` defaults
+`--case-sets` to `examples/fiqa/case_sets` when omitted, and
+`eval_reranker.py --reckless --split test` hard-fails unless the ledger anchor
+exists, the test split exists, every referenced `source_case_id` still passes
+its original regression rule, and test `nDCG@10` + `MRR@10` both beat the
+anchor.
+
+Empty `case_sets` inputs are allowed; in reckless mode that means there are no
+source cases to re-accept, but the test anchor comparison still runs.
+
 ## Cross-round ledger
 
 `regression_ledger.py` owns cross-round memory in a committed
@@ -241,9 +251,11 @@ python skills/heuriboost-rag/scripts/regression_ledger.py summary --ledger examp
 python skills/heuriboost-rag/scripts/regression_ledger.py promote examples/fiqa/regression_cases.yaml <case_id> --ledger examples/fiqa/ledger.json
 ```
 
-The anchored-baseline comparison is **reported, not auto-blocking** — promotion
-is always a manual decision. Use `--no-ledger` on `eval_reranker.py` to skip
-ledger writes for ad-hoc eval.
+The anchored-baseline comparison is **reported, not auto-blocking** in the
+default flow — promotion is always a manual decision. Use `--no-ledger` on
+`eval_reranker.py` to skip ledger writes for ad-hoc eval. Reckless mode is
+stricter and exits non-zero when test `nDCG@10` or `MRR@10` fail to beat the
+anchor.
 
 ## Closing the loop: case_sets mining
 
@@ -268,6 +280,12 @@ python skills/heuriboost-rag/scripts/train_reranker.py \
   --case-sets examples/fiqa/case_sets \
   --regression-cases examples/fiqa/regression_cases.yaml
 
+# 2b. Reckless variant: omit --case-sets to default to examples/fiqa/case_sets
+python skills/heuriboost-rag/scripts/train_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir examples/fiqa/output \
+  --reckless
+
 # 3. Eval + ledger (tags the round as having used case_sets)
 python skills/heuriboost-rag/scripts/eval_reranker.py \
   examples/fiqa/query_doc_examples.csv \
@@ -275,6 +293,13 @@ python skills/heuriboost-rag/scripts/eval_reranker.py \
   --split validation \
   --regression-cases examples/fiqa/regression_cases.yaml \
   --case-sets-used
+
+# 3b. Reckless acceptance: evaluate test and require anchor improvement
+python skills/heuriboost-rag/scripts/eval_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir examples/fiqa/output \
+  --split test \
+  --reckless
 
 # 4. (manual) If a pending case passed AND the baseline check is OK, promote it
 python skills/heuriboost-rag/scripts/regression_ledger.py promote \

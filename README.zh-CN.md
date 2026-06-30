@@ -115,6 +115,13 @@ python3 skills/heuriboost-rag/scripts/train_reranker.py  examples/fiqa/query_doc
 python3 skills/heuriboost-rag/scripts/eval_reranker.py   examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
 ```
 
+鲁莽闭环变体：
+
+```bash
+python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --reckless
+python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --split test --reckless
+```
+
 报告写入 `examples/fiqa/output/reports/`（被 git 忽略）。要用自己的数据，参考
 [CSV 契约](./docs/REFERENCE.zh-CN.md#csv-契约)；完整的失败攻击循环、ledger 和
 skill 模式见[参考手册](./docs/REFERENCE.zh-CN.md)。
@@ -136,6 +143,7 @@ skill 模式见[参考手册](./docs/REFERENCE.zh-CN.md)。
 - [x] per-case 检查（`require_rank`、`min_ndcg10`）+ 整体质量检查
 - [x] 跨轮 ledger，含手动锚定的基线
 - [x] `case_sets` 挖掘循环：挖掘相似失败、回填训练、与用例隔离
+- [x] `--reckless` 闭环：把 case_sets 直接放进训练，并要求 test nDCG@10 + MRR@10 超过锚点
 - [x] 端到端 FiQA-2018 demo（提交的 CSV、离线构建器、两种标签模式）
 - [x] Codex-compatible agent skill（`audit` / `bootstrap` / `experiment`）
 
