@@ -1,0 +1,4 @@
+interface:
+  display_name: "Reckless Input Builder"
+  short_description: "Build reckless repair input files from raw materials"
+  default_prompt: "Use $reckless-input-builder to turn my raw RAG logs and labels into reckless repair input files."
