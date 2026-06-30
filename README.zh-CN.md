@@ -115,7 +115,7 @@ python3 skills/heuriboost-rag/scripts/train_reranker.py  examples/fiqa/query_doc
 python3 skills/heuriboost-rag/scripts/eval_reranker.py   examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
 ```
 
-鲁莽闭环变体：
+底层鲁莽闭环变体：
 
 ```bash
 python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --reckless
@@ -124,24 +124,54 @@ python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_e
 
 ### 鲁莽模式：生产 case 快速修复通道
 
-`--reckless` 可以看作一种在线学习式的生产 case 修复通道。线上源源不断出现失败
-case 时，先把原始失败写成 regression case，再收集或挖掘它关联的 `case_sets`，
-然后把这些 `case_sets` 直接折叠进 train 训练。这个模式允许模型快速吸收新 case，
-必要时可以有意识地“过拟合”当前已经观察到的生产问题。
+`--reckless` 可以看作一种在线学习式的生产 case 修复通道。用户侧只需要准备两张表：
 
-但鲁莽不等于放松验收。`case_sets` 是训练输入，不是考题本身。
-`eval_reranker.py --reckless --split test` 会按 `source_case_id` 回到原始
-regression case 逐条验收；同时要求 test 的 `nDCG@10` 和 `MRR@10` 都超过 ledger
-anchor，否则硬失败。
+- `base_dataset.csv`：稳定的 train / validation / test 数据，最小列为
+  `query,text,relevance`。
+- `production_cases.csv`：线上失败或反馈，最小列为
+  `query,shown_doc_text,user_verdict`。
+
+编译器会把这两张表展开成内部的 `query_doc_examples.csv`、
+`regression_cases.yaml` 和 `case_sets/`，写到
+`output/.heuriboost/compiled/`。这些是审计/调试产物，不是用户要手写的输入。
+
+```bash
+python3 skills/heuriboost-rag/scripts/compile_cases.py \
+  --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
+  --production-cases examples/fiqa/repair/production_cases_full.csv \
+  --output-dir examples/fiqa/output \
+  --strict
+
+python3 skills/heuriboost-rag/scripts/repair_reranker.py \
+  --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
+  --production-cases examples/fiqa/repair/production_cases_full.csv \
+  --output-dir examples/fiqa/output \
+  --reckless
+
+python3 skills/heuriboost-rag/scripts/promote_repair.py \
+  --output-dir examples/fiqa/output
+```
+
+这个模式允许模型快速吸收当前生产 case，必要时可以有意识地“过拟合”已经观察到的
+生产问题。第一次严格 repair 会从 `base_dataset` 自动初始化 ledger anchor；后续
+运行复用已有 anchor，除非显式传 `--reset-anchor`。
+
+但鲁莽不等于放松验收。默认 full 验收要求：至少一个 good 生产文档进入 top-k，
+所有 bad 文档离开 top-k，历史 gates 全通过，全局 test 的 `nDCG@10` 和 `MRR@10`
+都超过 anchor，且所有 touched domain 不退化。只有 bad 的 case 可以显式使用
+`--acceptance-level weak`，但 weak run 永远不能 promote。
 
 ```mermaid
 flowchart LR
-    A["线上 case + case_sets"] --> B["--reckless 训练"]
-    B --> C["--reckless 评估 test"]
-    C --> D{"逐条 case 通过且 test 超过 anchor?"}
-    D -- 是 --> E["接受本轮"]
+    A["base_dataset + production_cases"] --> B["编译生成内部产物"]
+    B --> C["repair --reckless 训练一个候选模型"]
+    C --> D{"case、gate、test、domain 都通过?"}
+    D -- 是 --> E["显式 promote"]
     D -- 否 --> F["硬失败并继续迭代"]
 ```
+
+底层 `train_reranker.py --reckless` / `eval_reranker.py --reckless` 仍保留，
+给已经直接维护 `regression_cases.yaml` 与挖掘 `case_sets` 的维护者使用。
 
 报告写入 `examples/fiqa/output/reports/`（被 git 忽略）。要用自己的数据，参考
 [CSV 契约](./docs/REFERENCE.zh-CN.md#csv-契约)；完整的失败攻击循环、ledger 和
@@ -165,6 +195,7 @@ skill 模式见[参考手册](./docs/REFERENCE.zh-CN.md)。
 - [x] 跨轮 ledger，含手动锚定的基线
 - [x] `case_sets` 挖掘循环：挖掘相似失败、回填训练、与用例隔离
 - [x] `--reckless` 闭环：把 case_sets 直接放进训练，并要求 test nDCG@10 + MRR@10 超过锚点
+- [x] 两张表生产修复流：`base_dataset` + `production_cases` 编译、修复、显式 promote
 - [x] 端到端 FiQA-2018 demo（提交的 CSV、离线构建器、两种标签模式）
 - [x] Codex-compatible agent skill（`audit` / `bootstrap` / `experiment`）
 

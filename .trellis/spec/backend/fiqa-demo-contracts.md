@@ -259,3 +259,102 @@ isolation ensures the mined samples don't leak the exam answers.
 **Pipeline-validation caveat**: step-2 attack results under heuristic labels
 are pipeline-validation grade, not benchmark. They test whether the mechanics
 work, not whether the attack credibly moves a pending case.
+
+## Scenario: production-case repair entrypoint
+
+### 1. Scope / Trigger
+- Trigger: new user-facing compile/repair/promote command path that intentionally
+  lets current production case rows enter training under strict `--reckless`
+  acceptance.
+
+### 2. Signatures
+```bash
+python3 skills/heuriboost-rag/scripts/compile_cases.py \
+  --base-dataset <base_dataset.csv|jsonl> \
+  --production-cases <production_cases.csv|jsonl> \
+  --output-dir <dir> [--strict] [--resplit]
+
+python3 skills/heuriboost-rag/scripts/repair_reranker.py \
+  --base-dataset <base_dataset.csv|jsonl> \
+  --production-cases <production_cases.csv|jsonl> \
+  --output-dir <dir> \
+  --reckless [--acceptance-level full|weak] [--reset-anchor]
+
+python3 skills/heuriboost-rag/scripts/promote_repair.py --output-dir <dir>
+```
+
+### 3. Contracts
+- User-facing base dataset minimal columns are `query,text,relevance`.
+  Recommended columns are
+  `domain,query_id,query,doc_id,text,relevance,split,rank,score`.
+- User-facing production cases minimal columns are
+  `query,shown_doc_text,user_verdict`. Recommended columns are
+  `domain,case_id,query,shown_doc_id,shown_doc_text,user_verdict,rank,score`.
+- Missing `domain` compiles to `default`. Domain is a hard boundary for
+  synthetic ids, candidate completion, promoted repair memory, gates, and
+  touched-domain acceptance.
+- Missing ids are generated from stable hashes and preserved source ids remain
+  available for audit.
+- If `base_dataset.split` exists, it is respected. Auto-split only happens when
+  split is absent or `--resplit` is explicit.
+- Compiled internal artifacts are generated under
+  `<output>/.heuriboost/compiled/` and are audit/debug output, not user-authored
+  prerequisites.
+- `repair_reranker.py --reckless` trains one user-visible candidate model using
+  base train rows, promoted repair memory, and current production repair
+  samples. This is the deliberate exception to the lower-level "case rows are
+  exam questions" invariant.
+- Base test remains the metric-level regression suite. Production cases and
+  historical gates are not appended to base test.
+- Missing repair anchor auto-initializes from a base-dataset-only baseline.
+  Existing anchors are never overwritten unless `--reset-anchor` is explicit.
+- Full acceptance is default and promotion-eligible only when current cases,
+  historical gates, global test improvement, and touched-domain non-regression
+  all pass.
+- Weak acceptance is explicit, supports bad-only suppression, and is never
+  promotion eligible.
+
+### 4. Validation & Error Matrix
+- production case domain absent from base dataset -> hard fail
+- same doc marked both good and bad in one case -> hard fail
+- `production_cases` contains only unknown verdicts -> hard fail
+- full acceptance case has no good target -> hard fail
+- strict validation/test query has fewer than two candidate docs -> hard fail
+- strict global test has fewer than required query groups -> hard fail
+- touched domain has no anchor metrics -> hard fail
+- current case, historical gate, global test, or touched-domain check fails ->
+  hard fail from `repair_reranker.py`
+- synthetic ids, auto-split, one-doc query outside strict sufficiency, and
+  bad-only case -> warning
+
+### 5. Good/Base/Bad Cases
+- Good: `base_dataset` includes stable train/validation/test coverage, a full
+  production case has good+bad evidence, strict repair passes, and
+  `promote_repair.py` freezes the case as a gate.
+- Base: lower-level `train_reranker.py --case-sets` and
+  `eval_reranker.py --reckless` behavior remains unchanged.
+- Bad: weak bad-only repair suppresses the bad doc but `promote_repair.py`
+  refuses because `promotion_eligible=false`.
+
+### 6. Tests Required
+- `python3 -m py_compile skills/heuriboost-rag/scripts/*.py`
+- `compile_cases.py --strict` on the committed repair fixture.
+- `compile_cases.py` with no split column to prove deterministic auto-split.
+- `repair_reranker.py --reckless` hard-fail path where case/global acceptance
+  fails.
+- `repair_reranker.py --reckless` success path with a controlled low anchor.
+- `promote_repair.py` success on an eligible full run and refusal on weak or
+  non-eligible runs.
+- Verify `examples/fiqa/ledger.json` is unchanged by the production repair
+  fixture smoke tests.
+
+### 7. Wrong vs Correct
+#### Wrong
+Ask users to maintain `query_doc_examples.csv`, `regression_cases.yaml`, and
+`case_sets/` by hand for online production failures.
+
+#### Correct
+Users provide `base_dataset` and `production_cases`; the compiler emits the
+internal files, repair trains exactly one candidate model, and promotion is an
+explicit operation that updates only repair state (`current_model`, anchors,
+gates, promoted repair memory), not user input files or online deployment.

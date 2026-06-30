@@ -11,6 +11,7 @@ HeuriBoost Q-D reranker 的操作参考。[README](../README.zh-CN.md) 讲故事
 - [标签含义](#标签含义)
 - [Regression cases](#regression-cases)
 - [跨轮 ledger](#跨轮-ledger)
+- [生产 case 修复](#生产-case-修复)
 - [闭环：case_sets 挖掘](#闭环case_sets-挖掘)
 - [报告说明](#报告说明)
 - [Agent skill](#agent-skill)
@@ -242,6 +243,99 @@ anchor。
 
 默认流里的锚定基线对比仍然只是“报告，不自动阻断”；鲁莽模式则更严格，若
 test 的 `nDCG@10` 或 `MRR@10` 没有超过 anchor，就直接失败。
+
+## 生产 case 修复
+
+用户侧的 reckless 修复流从两张表开始，旧的内部产物由编译器自动生成。
+
+`base_dataset.csv` 是稳定的 train、validation 和指标级 test 验收集。最小列：
+
+```csv
+query,text,relevance
+```
+
+推荐列：
+
+```csv
+domain,query_id,query,doc_id,text,relevance,split,rank,score
+```
+
+`production_cases.csv` 是线上 incident / feedback 表。最小列：
+
+```csv
+query,shown_doc_text,user_verdict
+```
+
+推荐列：
+
+```csv
+domain,case_id,query,shown_doc_id,shown_doc_text,user_verdict,rank,score
+```
+
+`domain` 可省略，默认 `default`；但一旦提供，就是 synthetic id、候选补全、
+promoted repair memory、历史 gates 和 touched-domain 检查的硬边界。`base_dataset`
+若带 `split`，编译器会尊重；若不带，则按 query 确定性自动切分。某个 query 只有
+一个 doc 时，普通编译只警告；但 strict repair 仍要求 validation/test 的 query
+group 至少有两个 doc。
+
+`base_dataset.relevance` 的 label alias：
+
+| alias | 内部 label |
+|---|---:|
+| `good`, `positive` | `3` |
+| `partial` | `2` |
+| `weak` | `1` |
+| `irrelevant`, `negative` | `0` |
+| `bad`, `hard_negative` | `-1` |
+
+`production_cases.user_verdict` 取值：
+
+| verdict | 行为 |
+|---|---|
+| `good` | 正向 repair sample，也是 full 验收目标 |
+| `bad` | hard-negative repair sample，也是压制目标 |
+| `unknown` | 仅作为上下文；不进训练，也不参与验收 |
+
+命令：
+
+```bash
+python3 skills/heuriboost-rag/scripts/compile_cases.py \
+  --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
+  --production-cases examples/fiqa/repair/production_cases_full.csv \
+  --output-dir examples/fiqa/output \
+  --strict
+
+python3 skills/heuriboost-rag/scripts/repair_reranker.py \
+  --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
+  --production-cases examples/fiqa/repair/production_cases_full.csv \
+  --output-dir examples/fiqa/output \
+  --reckless
+
+python3 skills/heuriboost-rag/scripts/promote_repair.py \
+  --output-dir examples/fiqa/output
+```
+
+生成的审计产物在 `output/.heuriboost/compiled/`：`query_doc_examples.csv`、
+`regression_cases.yaml`、`case_sets/`、`production_cases.json`。这些不是用户
+手写前置条件。
+
+strict repair 行为：
+
+- 缺 anchor 时，从只使用 `base_dataset` 的基线自动初始化；
+- 已有 anchor 会复用，除非显式 `--reset-anchor`；
+- 只向用户暴露一个候选模型，写到 `output/models/`；
+- 当前 production cases 会进入 repair 训练；
+- base test 仍是指标级回归验收集，不会被 production cases 静默扩充；
+- 历史 gates 是自包含 case snapshot，不是 base-test 行。
+
+默认 full 验收要求：至少一个 good doc 进入 top-k，所有 bad doc 离开 top-k，
+历史 gates 全通过，全局 base-test `nDCG@10` 与 `MRR@10` 都超过 anchor，且 touched
+domain 指标不低于 domain anchor。`--acceptance-level weak` 允许 bad-only 压制
+检查，但永远不能 promote。
+
+`promote_repair.py` 会拒绝失败或 weak run。成功 promote 会刷新 repair anchor，
+把 full production cases 冻结为历史 gates，追加 promoted repair samples，并写入
+`output/.heuriboost/current_model.json`。它不会修改用户输入 CSV，也不会线上部署。
 
 ## 闭环：case_sets 挖掘
 

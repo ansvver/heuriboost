@@ -55,6 +55,14 @@ python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_
 python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --split test --reckless
 ```
 
+User-facing production repair flow from two tables:
+
+```bash
+python3 skills/heuriboost-rag/scripts/compile_cases.py --base-dataset examples/fiqa/repair/base_dataset_minimal.csv --production-cases examples/fiqa/repair/production_cases_full.csv --output-dir examples/fiqa/output --strict
+python3 skills/heuriboost-rag/scripts/repair_reranker.py --base-dataset examples/fiqa/repair/base_dataset_minimal.csv --production-cases examples/fiqa/repair/production_cases_full.csv --output-dir examples/fiqa/output --reckless
+python3 skills/heuriboost-rag/scripts/promote_repair.py --output-dir examples/fiqa/output
+```
+
 Evaluate and run regression gates:
 
 ```bash
@@ -201,7 +209,7 @@ skills/heuriboost-rag/
   SKILL.md
   requirements.txt
   requirements-build.txt
-  scripts/{common.py,inspect_rag_repo.py,validate_dataset.py,train_reranker.py,eval_reranker.py,regression_ledger.py,mine_case_sets.py,build_fiqa_csv.py,run_hpo.py,run_ablation.py,run_discover_candidates.py}
+  scripts/{common.py,inspect_rag_repo.py,validate_dataset.py,train_reranker.py,eval_reranker.py,regression_ledger.py,mine_case_sets.py,repair_cases.py,compile_cases.py,repair_reranker.py,promote_repair.py,build_fiqa_csv.py,run_hpo.py,run_ablation.py,run_discover_candidates.py}
   scripts/features/{__init__.py,registry.py,primitives.py,recipes.py}
   scripts/hpo/{__init__.py,engine.py,optuna_backend.py}
   templates/{query_doc_examples.csv,regression_cases.yaml,feature_recipes.yaml,promotion_gate.yaml}
@@ -210,6 +218,7 @@ examples/fiqa/
   regression_cases.yaml
   ledger.json
   case_sets/{manifest.json,<case_id>.csv}
+  repair/{base_dataset_minimal.csv,production_cases_full.csv,production_cases_bad_only.csv}
   DATA_CARD.md
 docs/specs/
   ADAPTIVE_XGBOOST_HEURISTIC_SPEC.md
@@ -296,6 +305,31 @@ qd_reranker/
   prints "round N used case_sets" when true.
 - `case_sets` are committed under `examples/fiqa/case_sets/` (derived,
   regeneratable via `mine_case_sets.py`, NOT gitignored).
+
+## V1 Production Case Repair Entrypoint (implemented 2026-06-30)
+
+- User-facing input is two tables:
+  - `base_dataset.csv`: minimal `query,text,relevance`; recommended
+    `domain,query_id,query,doc_id,text,relevance,split,rank,score`.
+  - `production_cases.csv`: minimal `query,shown_doc_text,user_verdict`;
+    recommended `domain,case_id,query,shown_doc_id,shown_doc_text,user_verdict,rank,score`.
+- `compile_cases.py` normalizes labels/verdicts, generates stable synthetic ids,
+  defaults missing `domain` to `default`, respects user `split`, auto-splits by
+  query when split is absent, and writes generated internal artifacts under
+  `output/.heuriboost/compiled/`.
+- `repair_reranker.py --reckless` is the strict high-level path. It may train on
+  current production case rows, promoted repair memory, and base train rows. It
+  auto-initializes a missing anchor from the base dataset baseline and refuses
+  to overwrite an existing anchor unless `--reset-anchor` is explicit.
+- Acceptance uses current production cases, historical full gates, and base test
+  `nDCG@10` / `MRR@10`. Base test is not extended with production cases.
+  Touched domains must not regress versus their domain anchors.
+- `promote_repair.py` is explicit. It refuses failed or weak runs, refreshes the
+  repair anchor, freezes full production cases as self-contained gates, appends
+  promoted repair samples, and writes `.heuriboost/current_model.json`.
+- Domain is a hard boundary for ids, candidate completion, promoted memory,
+  gates, and touched-domain checks. Auto-completed candidates come only from
+  same-domain non-positive base rows and never synthesize good targets.
 
 ## Future Decisions Before Expanding Beyond V0
 

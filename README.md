@@ -126,7 +126,7 @@ python3 skills/heuriboost-rag/scripts/train_reranker.py  examples/fiqa/query_doc
 python3 skills/heuriboost-rag/scripts/eval_reranker.py   examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
 ```
 
-To run the reckless closed-loop variant:
+To run the lower-level reckless closed-loop variant:
 
 ```bash
 python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --reckless
@@ -135,26 +135,60 @@ python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_e
 
 ### Reckless mode: production-case fast repair
 
-`--reckless` is the online-learning-style repair lane for production cases.
-When real traffic keeps producing failures, capture the original failures as
-regression cases, collect or mine their related `case_sets`, then train with
-those `case_sets` folded directly into the train split. This intentionally lets
-the model absorb the new cases quickly, even if the local fix is close to
-"overfitting" the observed production problem.
+`--reckless` is the online-learning-style repair lane for production cases. The
+user-facing path needs only two tables:
 
-The mode is still strict at acceptance time. `case_sets` are training input, not
-the exam. `eval_reranker.py --reckless --split test` re-checks the original
-source cases one by one through their regression rules, then hard-fails unless
-test `nDCG@10` and `MRR@10` both beat the ledger anchor.
+- `base_dataset.csv`: your stable train / validation / test rows, with minimal
+  columns `query,text,relevance`.
+- `production_cases.csv`: online failures or feedback rows, with minimal
+  columns `query,shown_doc_text,user_verdict`.
+
+The repair compiler expands those two tables into the internal
+`query_doc_examples.csv`, `regression_cases.yaml`, and `case_sets/` artifacts
+under `output/.heuriboost/compiled/`. Those files are audit/debug output, not
+the user contract.
+
+```bash
+python3 skills/heuriboost-rag/scripts/compile_cases.py \
+  --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
+  --production-cases examples/fiqa/repair/production_cases_full.csv \
+  --output-dir examples/fiqa/output \
+  --strict
+
+python3 skills/heuriboost-rag/scripts/repair_reranker.py \
+  --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
+  --production-cases examples/fiqa/repair/production_cases_full.csv \
+  --output-dir examples/fiqa/output \
+  --reckless
+
+python3 skills/heuriboost-rag/scripts/promote_repair.py \
+  --output-dir examples/fiqa/output
+```
+
+This intentionally lets the model absorb current production cases quickly,
+even if the local fix is close to "overfitting" the observed production problem.
+The first strict repair run initializes its ledger anchor from the base dataset;
+later runs reuse that anchor unless `--reset-anchor` is explicit.
+
+The mode is still strict at acceptance time. Full acceptance is the default: at
+least one good production doc must enter top-k, all bad docs must stay outside
+top-k, historical gates must pass, global test `nDCG@10` and `MRR@10` must both
+beat the anchor, and every touched domain must avoid regression. Bad-only cases
+can run with `--acceptance-level weak`, but weak runs are never promotion
+eligible.
 
 ```mermaid
 flowchart LR
-    A["Production cases + case_sets"] --> B["Train with --reckless"]
-    B --> C["Evaluate test with --reckless"]
-    C --> D{"Cases pass and test beats anchor?"}
-    D -- yes --> E["Accept round"]
+    A["base_dataset + production_cases"] --> B["compile generated artifacts"]
+    B --> C["repair --reckless trains one candidate"]
+    C --> D{"Cases, gates, test, domain pass?"}
+    D -- yes --> E["promote explicitly"]
     D -- no --> F["Hard fail and iterate"]
 ```
+
+The lower-level `train_reranker.py --reckless` / `eval_reranker.py --reckless`
+path still exists for maintainers who already work directly with
+`regression_cases.yaml` and mined `case_sets`.
 
 Reports land in `examples/fiqa/output/reports/` (gitignored). To bring your own
 data, follow the [CSV contract](./docs/REFERENCE.md#csv-contract); for the full
@@ -179,6 +213,7 @@ Done:
 - [x] Cross-round ledger with a manually-anchored baseline
 - [x] `case_sets` mining loop: mine similar failures, fold into training, isolated from cases
 - [x] `--reckless` loop: fold case_sets directly into training and require test nDCG@10 + MRR@10 to beat the anchor
+- [x] Two-table production repair flow: `base_dataset` + `production_cases` compile, repair, and explicit promote
 - [x] End-to-end FiQA-2018 demo (committed CSV, offline builder, both label modes)
 - [x] Codex-compatible agent skill (`audit` / `bootstrap` / `experiment`)
 

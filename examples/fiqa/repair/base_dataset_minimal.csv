@@ -1,0 +1,27 @@
+domain,query,text,relevance,split
+tax,How do I deduct home office expenses?,Home office deduction rules for a sole proprietor require exclusive business use.,good,train
+tax,How do I deduct home office expenses?,Corporate office lease accounting rules for a company headquarters.,bad,train
+tax,Can I deduct meals on a business trip?,Business travel meals may be partly deductible when the trip has a business purpose.,good,train
+tax,Can I deduct meals on a business trip?,Personal vacation meals are not business expenses.,bad,train
+tax,What is a wash sale?,A wash sale happens when substantially identical securities are bought around a loss sale.,good,validation
+tax,What is a wash sale?,A stock split changes share count but is not a wash sale rule.,bad,validation
+tax,How are Roth IRA contributions taxed?,Roth IRA contributions are made with after-tax dollars and qualified withdrawals can be tax free.,good,test
+tax,How are Roth IRA contributions taxed?,Traditional IRA deductions reduce current taxable income subject to limits.,bad,test
+tax,What is capital gains tax?,Capital gains tax applies to profit when selling an appreciated investment.,good,test
+tax,What is capital gains tax?,Payroll tax is withheld from wages for Social Security and Medicare.,bad,test
+tax,How does mortgage interest deduction work?,Mortgage interest may be deductible for qualified home acquisition debt subject to limits.,good,test
+tax,How does mortgage interest deduction work?,Credit card interest on personal purchases is generally not deductible.,bad,test
+tax,What is tax-loss harvesting?,Tax-loss harvesting sells investments at a loss to offset capital gains.,good,test
+tax,What is tax-loss harvesting?,Dividend reinvestment buys more shares with paid dividends.,bad,test
+tax,Can student loan interest be deducted?,Student loan interest may be deductible subject to income limits.,good,test
+tax,Can student loan interest be deducted?,Mortgage escrow accounts hold funds for taxes and insurance.,bad,test
+tax,What is an HSA?,An HSA is a health savings account paired with a high-deductible health plan.,good,test
+tax,What is an HSA?,A 529 plan is an education savings account.,bad,test
+tax,How are dividends taxed?,Qualified dividends may receive preferential tax rates compared with ordinary income.,good,test
+tax,How are dividends taxed?,Bond duration measures interest rate sensitivity.,bad,test
+tax,What is depreciation?,Depreciation allocates the cost of a business asset over its useful life.,good,test
+tax,What is depreciation?,Inflation is a general increase in prices across the economy.,bad,test
+tax,Can I deduct charitable donations?,Charitable donations to qualified organizations may be deductible if itemized.,good,test
+tax,Can I deduct charitable donations?,Political campaign contributions are not charitable deductions.,bad,test
+tax,What is estimated tax?,Estimated tax payments cover income not subject to withholding during the year.,good,test
+tax,What is estimated tax?,An insurance premium is the price paid for coverage.,bad,test

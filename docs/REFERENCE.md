@@ -12,6 +12,7 @@ command details a maintainer needs day to day.
 - [Label scale](#label-scale)
 - [Regression cases](#regression-cases)
 - [Cross-round ledger](#cross-round-ledger)
+- [Production-case repair](#production-case-repair)
 - [Closing the loop: case_sets mining](#closing-the-loop-case_sets-mining)
 - [Reports](#reports)
 - [Agent skill](#agent-skill)
@@ -256,6 +257,105 @@ default flow — promotion is always a manual decision. Use `--no-ledger` on
 `eval_reranker.py` to skip ledger writes for ad-hoc eval. Reckless mode is
 stricter and exits non-zero when test `nDCG@10` or `MRR@10` fail to beat the
 anchor.
+
+## Production-case repair
+
+The user-facing reckless repair flow starts from two tables and compiles the
+older internal artifacts automatically.
+
+`base_dataset.csv` is the stable dataset for train, validation, and metric-level
+test acceptance. Minimal columns:
+
+```csv
+query,text,relevance
+```
+
+Recommended columns:
+
+```csv
+domain,query_id,query,doc_id,text,relevance,split,rank,score
+```
+
+`production_cases.csv` is the online incident / feedback table. Minimal columns:
+
+```csv
+query,shown_doc_text,user_verdict
+```
+
+Recommended columns:
+
+```csv
+domain,case_id,query,shown_doc_id,shown_doc_text,user_verdict,rank,score
+```
+
+`domain` is optional and defaults to `default`, but once present it is a hard
+boundary for synthetic ids, candidate completion, promoted repair memory,
+historical gates, and touched-domain checks. If `split` is present in
+`base_dataset`, the compiler respects it; if absent, it deterministically
+auto-splits by query. A query with only one doc is a compile warning, but strict
+repair still requires validation/test query groups to have at least two docs.
+
+Label aliases for `base_dataset.relevance`:
+
+| Alias | Internal label |
+|---|---:|
+| `good`, `positive` | `3` |
+| `partial` | `2` |
+| `weak` | `1` |
+| `irrelevant`, `negative` | `0` |
+| `bad`, `hard_negative` | `-1` |
+
+`production_cases.user_verdict` is one of:
+
+| Verdict | Behavior |
+|---|---|
+| `good` | positive repair sample and full-acceptance target |
+| `bad` | hard-negative repair sample and suppression target |
+| `unknown` | context only; not training or acceptance input |
+
+Commands:
+
+```bash
+python3 skills/heuriboost-rag/scripts/compile_cases.py \
+  --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
+  --production-cases examples/fiqa/repair/production_cases_full.csv \
+  --output-dir examples/fiqa/output \
+  --strict
+
+python3 skills/heuriboost-rag/scripts/repair_reranker.py \
+  --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
+  --production-cases examples/fiqa/repair/production_cases_full.csv \
+  --output-dir examples/fiqa/output \
+  --reckless
+
+python3 skills/heuriboost-rag/scripts/promote_repair.py \
+  --output-dir examples/fiqa/output
+```
+
+Generated audit artifacts land under `output/.heuriboost/compiled/`:
+`query_doc_examples.csv`, `regression_cases.yaml`, `case_sets/`, and
+`production_cases.json`. These are not user prerequisites.
+
+Strict repair behavior:
+
+- missing anchor initializes from a base-dataset-only baseline;
+- existing anchor is reused unless `--reset-anchor` is explicit;
+- one user-visible candidate model is written under `output/models/`;
+- current production cases are added to repair training;
+- base test remains the metric-level regression suite and is not silently
+  extended with production cases;
+- historical gates are self-contained case snapshots, not base-test rows.
+
+Full acceptance is default. It requires at least one good doc in top-k, every
+bad doc outside top-k, all historical gates passing, global base-test
+`nDCG@10` and `MRR@10` both above anchor, and touched-domain metrics not below
+their domain anchor. `--acceptance-level weak` allows bad-only suppression
+checks, but the run is never promotion eligible.
+
+`promote_repair.py` refuses failed or weak runs. A successful promotion refreshes
+the repair anchor, freezes full production cases as historical gates, appends
+promoted repair samples, and writes `output/.heuriboost/current_model.json`.
+It does not mutate the user's input CSVs or deploy online.
 
 ## Closing the loop: case_sets mining
 

@@ -1,0 +1,3 @@
+domain,case_id,query,shown_doc_text,user_verdict,rank
+tax,prod_home_office,How do I deduct home office expenses?,Corporate office lease accounting rules for a company headquarters.,bad,1
+tax,prod_home_office,How do I deduct home office expenses?,Home office deduction rules for a sole proprietor require exclusive business use.,good,5
