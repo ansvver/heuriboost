@@ -1,9 +1,0 @@
-{"file": ".trellis/tasks/06-29-case-sets-mining-settlement-v1/prd.md", "reason": "Requirements R1-R5 + acceptance for case_sets mining & settlement."}
-{"file": ".trellis/tasks/06-29-case-sets-mining-settlement-v1/design.md", "reason": "Design: mining rule a+b+c, B+C isolation, storage, train changes, closed-loop commands, anti-leak refinement."}
-{"file": ".trellis/spec/backend/fiqa-demo-contracts.md", "reason": "Existing anti-leak + state-machine contracts to refine (train may read case IDs for denylist, never case rows as training data)."}
-{"file": "skills/heuriboost-rag/scripts/train_reranker.py", "reason": "Gains --case-sets merge into train + defensive B+C re-check using case denylist."}
-{"file": "skills/heuriboost-rag/scripts/eval_reranker.py", "reason": "Gains --case-sets-used flag passed to ledger; mechanics unchanged."}
-{"file": "skills/heuriboost-rag/scripts/regression_ledger.py", "reason": "record() stores case_sets_used; summary shows it. Step-1 contract holds."}
-{"file": "skills/heuriboost-rag/scripts/build_fiqa_csv.py", "reason": "Optional: dump query_embeddings.npz to cache for mining reuse."}
-{"file": "skills/heuriboost-rag/scripts/common.py", "reason": "CSV schema + FEATURE_NAMES contract; case_sets rows must match schema."}
-{"file": "examples/fiqa/regression_cases.yaml", "reason": "Source of pending cases (query_id, query_text, failure_type) and the case denylist for B+C."}

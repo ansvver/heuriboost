@@ -36,5 +36,9 @@ examples/fiqa/output/
 examples/fiqa/.cache/
 
 # Trellis local runtime state
+.agent/
+.agents/
+.codex/
+.trellis/
 .trellis/.developer
 .trellis/.runtime/
