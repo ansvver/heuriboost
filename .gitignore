@@ -38,6 +38,11 @@ examples/fiqa/.cache/
 # Trellis local runtime state
 .agent/
 .agents/
+!.agents/
+.agents/*
+!.agents/plugins/
+.agents/plugins/*
+!.agents/plugins/marketplace.json
 .codex/
 .trellis/
 .trellis/.developer

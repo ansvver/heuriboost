@@ -1,0 +1,20 @@
+{
+  "name": "heuriboost-local",
+  "interface": {
+    "displayName": "Heuriboost Local"
+  },
+  "plugins": [
+    {
+      "name": "heuriboost",
+      "source": {
+        "source": "local",
+        "path": "./plugins/heuriboost"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "AI & Data"
+    }
+  ]
+}

@@ -8,7 +8,7 @@ tool: it is run locally by a maintainer and is NOT part of the demo runtime path
 
 Requirements (heavy; kept out of the lightweight runtime requirements.txt):
 
-    python -m pip install -r skills/heuriboost-rag/requirements-build.txt
+    python -m pip install -r "$HEURIBOOST_RAG_SKILL_DIR/requirements-build.txt"
 
 It also requires:
 
@@ -60,6 +60,7 @@ import os
 import sys
 from pathlib import Path
 
+SKILL_DIR = Path(__file__).resolve().parent.parent
 
 # ---------------------------------------------------------------------------
 # Dependency / client helpers (imports are deferred so --help works anywhere)
@@ -81,8 +82,7 @@ def _require_build_deps() -> None:
         _fail(
             "missing build dependencies: "
             + ", ".join(missing)
-            + ". Install them with: python -m pip install -r "
-            "skills/heuriboost-rag/requirements-build.txt"
+            + f". Install them with: python -m pip install -r {SKILL_DIR / 'requirements-build.txt'}"
         )
 
 
@@ -122,8 +122,7 @@ class LLMJudge:
         except ImportError:
             _fail(
                 "the openai package is required for label judging. Install it "
-                "with: python -m pip install -r "
-                "skills/heuriboost-rag/requirements-build.txt"
+                f"with: python -m pip install -r {SKILL_DIR / 'requirements-build.txt'}"
             )
         # DeepSeek and other providers expose an OpenAI-compatible API. Read the
         # key from DEEPSEEK_API_KEY first, then fall back to OPENAI_API_KEY.

@@ -3,12 +3,13 @@
 
 Reads the per-case `failure_analysis.md` (Feature Contrast + Suggested Actions)
 for PENDING regression cases + the existing feature set, calls an LLM ONCE
-(DeepSeek, JSON mode) to propose N candidate FeatureRecipes, validates them
-statically, and writes candidate files ready for `run_ablation.py`.
+(DeepSeek, JSON mode) to propose up to five candidate FeatureRecipes, validates
+them statically, and writes candidate files ready for `run_ablation.py`.
 
 The LLM never sees label values or case rows. Generated `impl_code` is treated
 as UNTRUSTED: only `ast.parse` + `def candidate` check during generation;
-`importlib` execution is deferred to `run_ablation.py` after human review.
+`importlib` execution is deferred to `run_ablation.py`. Pass `--auto-ablate`
+to run ablation immediately for each valid candidate.
 
 Usage:
     export DEEPSEEK_API_KEY=sk-...
@@ -23,11 +24,15 @@ import ast
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 from features.registry import ALLOWED_INPUTS
 
+SKILL_DIR = Path(__file__).resolve().parent.parent
+MAX_CANDIDATES_PER_DISCOVERY_ROUND = 5
+MAX_DISCOVERY_PROMPT_CHARS = 24_000
 REQUIRED_RECIPE_FIELDS = (
     "name", "version", "description", "task_profiles", "inputs",
     "type", "default_value", "cost_tier", "online_safe", "leakage_risk",
@@ -67,7 +72,7 @@ class _LLMClient:
         except ImportError as exc:
             raise SystemExit(
                 "openai package required. Install with: python -m pip install -r "
-                "skills/heuriboost-rag/requirements-build.txt"
+                f"{SKILL_DIR / 'requirements-build.txt'}"
             ) from exc
         key = os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY")
         if not key:
@@ -242,6 +247,101 @@ def _safe_name(name: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_]+", "_", name).strip("_") or "candidate"
 
 
+def _write_auto_ablation_summary(out_dir: Path, rows: list[dict]) -> Path:
+    report_path = out_dir / "auto_ablation_report.md"
+    lines = ["# Auto-Ablation Report\n"]
+    lines.append("| candidate | status | recommendation | result |")
+    lines.append("|---|---|---|---|")
+    for row in rows:
+        lines.append(
+            f"| `{row['name']}` | {row['status']} | {row.get('recommendation', 'n/a')} "
+            f"| {row.get('result_path', row.get('error', 'n/a'))} |"
+        )
+    report_path.write_text("\n".join(lines) + "\n")
+    return report_path
+
+
+def _run_auto_ablation(args, written: list[dict], cand_dir: Path, out_dir: Path) -> None:
+    """Run run_ablation.py once per valid candidate."""
+    script_path = Path(__file__).resolve().parent / "run_ablation.py"
+    base_output_dir = (
+        Path(args.ablation_output_dir)
+        if args.ablation_output_dir
+        else out_dir / "auto_ablation"
+    )
+    base_output_dir.mkdir(parents=True, exist_ok=True)
+
+    rows: list[dict] = []
+    for candidate in written:
+        name = candidate["name"]
+        candidate_dir = cand_dir / name
+        candidate_output_dir = base_output_dir / name
+        result_path = candidate_output_dir / "ablation" / "ablation_result.json"
+        cmd = [
+            sys.executable,
+            str(script_path),
+            args.dataset,
+            "--candidate-recipe",
+            str(candidate_dir / "recipe.yaml"),
+            "--candidate-impl",
+            f"{candidate_dir / 'impl.py'}:candidate",
+            "--output-dir",
+            str(candidate_output_dir),
+            "--n-trials",
+            str(args.ablation_n_trials),
+            "--seed",
+            str(args.ablation_seed),
+            "--promote-threshold",
+            str(args.ablation_promote_threshold),
+            "--regression-cases",
+            args.regression_cases,
+            "--split",
+            args.ablation_split,
+        ]
+        print(f"\nAuto-ablation: {name}")
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as exc:
+            rows.append(
+                {
+                    "name": name,
+                    "status": "failed",
+                    "error": f"exit {exc.returncode}",
+                }
+            )
+            summary_path = _write_auto_ablation_summary(out_dir, rows)
+            raise SystemExit(
+                f"Auto-ablation failed for {name}. Summary: {summary_path}"
+            ) from exc
+
+        if not result_path.exists():
+            rows.append(
+                {
+                    "name": name,
+                    "status": "failed",
+                    "error": f"missing result {result_path}",
+                }
+            )
+            summary_path = _write_auto_ablation_summary(out_dir, rows)
+            raise SystemExit(
+                f"Auto-ablation for {name} did not write {result_path}. "
+                f"Summary: {summary_path}"
+            )
+        result = json.loads(result_path.read_text())
+        recommendation = result.get("recommendation", "unknown")
+        rows.append(
+            {
+                "name": name,
+                "status": "ok",
+                "recommendation": recommendation,
+                "result_path": str(result_path),
+            }
+        )
+
+    summary_path = _write_auto_ablation_summary(out_dir, rows)
+    print(f"Auto-ablation summary: {summary_path}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate candidate features via LLM.")
     parser.add_argument(
@@ -256,11 +356,40 @@ def main() -> None:
         ),
     )
     parser.add_argument("--out-dir", default="examples/fiqa/output/discovery")
-    parser.add_argument("--n-candidates", type=int, default=5)
+    parser.add_argument(
+        "--n-candidates",
+        type=int,
+        default=MAX_CANDIDATES_PER_DISCOVERY_ROUND,
+    )
     parser.add_argument("--model", default="deepseek-chat")
     parser.add_argument("--base-url", default="https://api.deepseek.com")
     parser.add_argument("--temperature", type=float, default=0.7)
+    parser.add_argument(
+        "--auto-ablate",
+        action="store_true",
+        help="Run run_ablation.py for each valid candidate after discovery.",
+    )
+    parser.add_argument(
+        "--dataset",
+        default="examples/fiqa/query_doc_examples.csv",
+        help="Dataset passed to run_ablation.py when --auto-ablate is set.",
+    )
+    parser.add_argument(
+        "--ablation-output-dir",
+        default=None,
+        help="Base output dir for auto-ablation; defaults to <out-dir>/auto_ablation.",
+    )
+    parser.add_argument("--ablation-n-trials", type=int, default=20)
+    parser.add_argument("--ablation-seed", type=int, default=42)
+    parser.add_argument("--ablation-promote-threshold", type=float, default=0.01)
+    parser.add_argument("--ablation-split", default="validation")
     args = parser.parse_args()
+
+    if not 1 <= args.n_candidates <= MAX_CANDIDATES_PER_DISCOVERY_ROUND:
+        parser.error(
+            "--n-candidates must be between 1 and "
+            f"{MAX_CANDIDATES_PER_DISCOVERY_ROUND} for one discovery round"
+        )
 
     fa_path = Path(args.failure_analysis)
     if not fa_path.exists():
@@ -277,6 +406,14 @@ def main() -> None:
     system, user = _build_prompt(
         failure_analysis_md, pending_cases, existing_features, args.n_candidates
     )
+    prompt_chars = len(system) + len(user)
+    if prompt_chars > MAX_DISCOVERY_PROMPT_CHARS:
+        raise SystemExit(
+            "Discovery prompt is too large "
+            f"({prompt_chars} chars > {MAX_DISCOVERY_PROMPT_CHARS}). "
+            "Do not auto-truncate pending cases; split the pending cases by "
+            "failure theme before rerunning."
+        )
     print(
         f"Generating up to {args.n_candidates} candidates for "
         f"{len(pending_cases)} pending case(s) via {args.model}..."
@@ -320,12 +457,21 @@ def main() -> None:
             yaml.safe_dump(recipe, sort_keys=False, allow_unicode=True)
         )
         (sub / "impl.py").write_text(entry["impl_code"])
-        written.append({"name": name, "inputs": recipe["inputs"], "description": recipe["description"]})
+        written.append(
+            {
+                "name": name,
+                "inputs": recipe["inputs"],
+                "description": recipe["description"],
+            }
+        )
 
     # Report
     lines = ["# Candidate Discovery Report\n"]
     lines.append(f"**Model**: {args.model}, temperature={args.temperature}\n")
-    lines.append(f"**Requested**: {args.n_candidates}, **written**: {len(written)}, **dropped**: {len(dropped)}\n")
+    lines.append(
+        f"**Requested**: {args.n_candidates}, **written**: {len(written)}, "
+        f"**dropped**: {len(dropped)}\n"
+    )
     lines.append(f"**Pending cases**: {[c.get('case_id') for c in pending_cases]}\n")
     lines.append("\n## Written candidates\n")
     if written:
@@ -341,17 +487,25 @@ def main() -> None:
         lines.append("|---|---|")
         for d in dropped:
             lines.append(f"| `{d['name']}` | {d['reason']} |")
-    lines.append("\n## ⚠ Review before running ablation\n")
-    lines.append(
-        "Generated `impl.py` files are executed by `run_ablation.py` via importlib. "
-        "Inspect each `candidates/<name>/impl.py` before running:\n"
-        "```\n"
-        "python3 scripts/run_ablation.py examples/fiqa/query_doc_examples.csv \\\n"
-        "  --candidate-recipe <out-dir>/candidates/<name>/recipe.yaml \\\n"
-        "  --candidate-impl <out-dir>/candidates/<name>/impl.py:candidate ...\n"
-        "```\n"
-    )
-    (out_dir / "candidates_report.md").write_text("\n".join(lines) + "\n")
+    if args.auto_ablate:
+        lines.append("\n## ⚠ Auto-ablation requested\n")
+        lines.append(
+            "Generated `impl.py` files are executed by `run_ablation.py` via "
+            "importlib because `--auto-ablate` was set. Promotion remains manual.\n"
+        )
+    else:
+        lines.append("\n## ⚠ Review before running ablation\n")
+        lines.append(
+            "Generated `impl.py` files are executed by `run_ablation.py` via importlib. "
+            "Inspect each `candidates/<name>/impl.py` before running:\n"
+            "```\n"
+            "python3 scripts/run_ablation.py examples/fiqa/query_doc_examples.csv \\\n"
+            "  --candidate-recipe <out-dir>/candidates/<name>/recipe.yaml \\\n"
+            "  --candidate-impl <out-dir>/candidates/<name>/impl.py:candidate ...\n"
+            "```\n"
+        )
+    report_path = out_dir / "candidates_report.md"
+    report_path.write_text("\n".join(lines) + "\n")
 
     print(f"\nWritten: {len(written)} candidates -> {cand_dir}")
     print(f"Dropped: {len(dropped)}")
@@ -359,7 +513,13 @@ def main() -> None:
         print(f"  + {w['name']} (inputs={w['inputs']})")
     for d in dropped:
         print(f"  - {d['name']}: {d['reason']}")
-    print(f"Report: {out_dir / 'candidates_report.md'}")
+    print(f"Report: {report_path}")
+    if not written:
+        raise SystemExit(
+            f"No valid candidates were written. Review dropped candidates in {report_path}."
+        )
+    if args.auto_ablate:
+        _run_auto_ablation(args, written, cand_dir, out_dir)
 
 
 if __name__ == "__main__":

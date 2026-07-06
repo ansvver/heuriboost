@@ -55,6 +55,7 @@ REQUIRED_NONEMPTY_FIELDS = (
 _VALID_COST_TIERS = {"L0", "L1", "L2", "L3"}
 _VALID_LEAKAGE = {"low", "medium", "high"}
 _VALID_TYPES = {"numeric", "categorical", "boolean"}
+SKILL_DIR = Path(__file__).resolve().parents[2]
 
 
 @dataclass(frozen=True)
@@ -111,7 +112,7 @@ class FeatureRegistry:
             raise SystemExit(
                 "PyYAML is required to load feature_recipes.yaml. "
                 "Install with: python -m pip install -r "
-                "skills/heuriboost-rag/requirements.txt"
+                f"{SKILL_DIR / 'requirements.txt'}"
             ) from exc
 
         yaml_path = Path(path)

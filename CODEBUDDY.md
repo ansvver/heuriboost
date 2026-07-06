@@ -14,9 +14,9 @@ publishing flow.
 Primary files:
 
 - `README.md` and `README.zh-CN.md` — public project overview and quick start.
-- `skills/heuriboost-rag/SKILL.md` — Codex-compatible skill instructions.
-- `skills/heuriboost-rag/scripts/` — runnable V0 validation, training, and evaluation scripts.
-- `skills/heuriboost-rag/templates/` — user-copyable CSV/YAML templates.
+- `plugins/heuriboost/skills/heuriboost-rag/SKILL.md` — Codex-compatible skill instructions.
+- `plugins/heuriboost/skills/heuriboost-rag/scripts/` — runnable V0 validation, training, and evaluation scripts.
+- `plugins/heuriboost/skills/heuriboost-rag/templates/` — user-copyable CSV/YAML templates.
 - `examples/fiqa/` — end-to-end FiQA-2018 RAG reranking demo (CSV generated offline by `build_fiqa_csv.py`).
 - `docs/specs/ADAPTIVE_XGBOOST_HEURISTIC_SPEC.md` — general adaptive XGBoost framework spec.
 - `docs/specs/QD_RERANKER_SPEC.md` — Q-D reranker specialization for RAG retrieval reranking.
@@ -27,64 +27,64 @@ Primary files:
 Install runtime dependencies:
 
 ```bash
-python -m pip install -r skills/heuriboost-rag/requirements.txt
+python -m pip install -r plugins/heuriboost/skills/heuriboost-rag/requirements.txt
 ```
 
 Validate the demo dataset:
 
 ```bash
-python3 skills/heuriboost-rag/scripts/validate_dataset.py examples/fiqa/query_doc_examples.csv
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/validate_dataset.py examples/fiqa/query_doc_examples.csv
 ```
 
 Train the demo reranker:
 
 ```bash
-python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output
 ```
 
 Train with mined case_sets folded into the train split (V1 step 2 closed loop):
 
 ```bash
-python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --case-sets examples/fiqa/case_sets --regression-cases examples/fiqa/regression_cases.yaml
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --case-sets examples/fiqa/case_sets --regression-cases examples/fiqa/regression_cases.yaml
 ```
 
 Reckless variant:
 
 ```bash
-python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --reckless
-python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --split test --reckless
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --reckless
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --split test --reckless
 ```
 
 User-facing production repair flow from two tables:
 
 ```bash
-python3 skills/heuriboost-rag/scripts/compile_cases.py --base-dataset examples/fiqa/repair/base_dataset_minimal.csv --production-cases examples/fiqa/repair/production_cases_full.csv --output-dir examples/fiqa/output --strict
-python3 skills/heuriboost-rag/scripts/repair_reranker.py --base-dataset examples/fiqa/repair/base_dataset_minimal.csv --production-cases examples/fiqa/repair/production_cases_full.csv --output-dir examples/fiqa/output --reckless
-python3 skills/heuriboost-rag/scripts/promote_repair.py --output-dir examples/fiqa/output
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/compile_cases.py --base-dataset examples/fiqa/repair/base_dataset_minimal.csv --production-cases examples/fiqa/repair/production_cases_full.csv --output-dir examples/fiqa/output --strict
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/repair_reranker.py --base-dataset examples/fiqa/repair/base_dataset_minimal.csv --production-cases examples/fiqa/repair/production_cases_full.csv --output-dir examples/fiqa/output --reckless
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/promote_repair.py --output-dir examples/fiqa/output
 ```
 
 Evaluate and run regression gates:
 
 ```bash
-python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
 ```
 
 Set the cross-round ledger anchor (manual, after confirmed gains):
 
 ```bash
-python skills/heuriboost-rag/scripts/regression_ledger.py set-anchor --ledger examples/fiqa/ledger.json
+python plugins/heuriboost/skills/heuriboost-rag/scripts/regression_ledger.py set-anchor --ledger examples/fiqa/ledger.json
 ```
 
 Print a ledger progress summary:
 
 ```bash
-python skills/heuriboost-rag/scripts/regression_ledger.py summary --ledger examples/fiqa/ledger.json
+python plugins/heuriboost/skills/heuriboost-rag/scripts/regression_ledger.py summary --ledger examples/fiqa/ledger.json
 ```
 
 Syntax-check scripts:
 
 ```bash
-python3 -m py_compile skills/heuriboost-rag/scripts/*.py
+python3 -m py_compile plugins/heuriboost/skills/heuriboost-rag/scripts/*.py
 ```
 
 The FiQA demo CSV (`examples/fiqa/query_doc_examples.csv`) is generated offline
@@ -205,7 +205,7 @@ Use this order from the specs when building the first implementation:
 ## Current V0 Layout
 
 ```text
-skills/heuriboost-rag/
+plugins/heuriboost/skills/heuriboost-rag/
   SKILL.md
   requirements.txt
   requirements-build.txt
@@ -266,7 +266,7 @@ qd_reranker/
 - V0 focuses on RAG query-document learning-to-rank, not generic classification/regression.
 - V0 is CSV-first and does not directly depend on LangChain, LlamaIndex, a vector database, or a specific retriever framework.
 - V0 uses real `xgboost`; missing dependency errors must be clear and actionable.
-- V0 keeps runnable scripts under `skills/heuriboost-rag/scripts/` and does not add formal package scaffolding.
+- V0 keeps runnable scripts under `plugins/heuriboost/skills/heuriboost-rag/scripts/` and does not add formal package scaffolding.
 - V0 includes deterministic failure analysis lite, not automatic feature discovery.
 
 ## V1 Case State Machine (implemented 2026-06-29)

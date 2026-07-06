@@ -9,6 +9,7 @@ not raised.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from common import ndcg_at_k
@@ -21,6 +22,7 @@ NUM_BOOST_ROUND = 200
 EARLY_STOPPING_ROUNDS = 20
 FIXED_SEED = 42
 NTHREAD = 1  # full determinism (xgboost multi-thread histogram building is non-deterministic)
+SKILL_DIR = Path(__file__).resolve().parents[2]
 
 
 def _require_optuna():
@@ -29,7 +31,7 @@ def _require_optuna():
     except ImportError as exc:
         raise SystemExit(
             "optuna is required for HPO. Install with: python -m pip install -r "
-            "skills/heuriboost-rag/requirements-build.txt"
+            f"{SKILL_DIR / 'requirements-build.txt'}"
         ) from exc
     return optuna
 

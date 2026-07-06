@@ -11,6 +11,17 @@ This skill is CSV-first and script-backed. Use it to audit a RAG project,
 bootstrap HeuriBoost templates, or run a local XGBoost/LambdaMART reranker
 experiment from labeled query-document examples.
 
+## Runtime Path
+
+Resolve scripts and templates relative to the directory containing this
+`SKILL.md`. In a Codex plugin install, that directory is not necessarily the
+user's project root. Use an absolute `HEURIBOOST_RAG_SKILL_DIR` when running
+commands:
+
+```bash
+HEURIBOOST_RAG_SKILL_DIR="<absolute path to this skill directory>"
+```
+
 ## Modes
 
 ### audit
@@ -26,7 +37,7 @@ HeuriBoost.
 Suggested command:
 
 ```bash
-python skills/heuriboost-rag/scripts/inspect_rag_repo.py .
+python "$HEURIBOOST_RAG_SKILL_DIR/scripts/inspect_rag_repo.py" .
 ```
 
 ### bootstrap
@@ -34,7 +45,7 @@ python skills/heuriboost-rag/scripts/inspect_rag_repo.py .
 Use bootstrap mode when the user wants to add HeuriBoost templates.
 
 1. Create a project-local workspace or copy files from
-   `skills/heuriboost-rag/templates/`.
+   `$HEURIBOOST_RAG_SKILL_DIR/templates/`.
 2. Explain the CSV contract.
 3. Ask the user to export labeled query-document examples.
 4. Do not train until labels exist.
@@ -46,25 +57,25 @@ Use experiment mode when the user has a CSV dataset.
 1. Install dependencies if needed:
 
    ```bash
-   python -m pip install -r skills/heuriboost-rag/requirements.txt
+   python -m pip install -r "$HEURIBOOST_RAG_SKILL_DIR/requirements.txt"
    ```
 
 2. Validate the dataset:
 
    ```bash
-   python skills/heuriboost-rag/scripts/validate_dataset.py path/to/query_doc_examples.csv
+   python "$HEURIBOOST_RAG_SKILL_DIR/scripts/validate_dataset.py" path/to/query_doc_examples.csv
    ```
 
 3. Train:
 
    ```bash
-   python skills/heuriboost-rag/scripts/train_reranker.py path/to/query_doc_examples.csv --output-dir path/to/output
+   python "$HEURIBOOST_RAG_SKILL_DIR/scripts/train_reranker.py" path/to/query_doc_examples.csv --output-dir path/to/output
    ```
 
 4. Evaluate:
 
    ```bash
-   python skills/heuriboost-rag/scripts/eval_reranker.py path/to/query_doc_examples.csv --output-dir path/to/output --regression-cases path/to/regression_cases.yaml
+   python "$HEURIBOOST_RAG_SKILL_DIR/scripts/eval_reranker.py" path/to/query_doc_examples.csv --output-dir path/to/output --regression-cases path/to/regression_cases.yaml
    ```
 
 5. Read `reports/eval_report.md`, `reports/ranking_diff.csv`,
@@ -106,5 +117,5 @@ hard-negative signal.
 - Treat regression cases as gates, not training rows.
 - Prefer CSV export over framework-specific adapters in V0.
 - Do not add a formal Python package scaffold in V0.
-- Do not describe V0 as automatic feature discovery. `failure_analysis.md` is a
+- Do not describe `failure_analysis.md` as automatic feature discovery. It is a
   deterministic lite analysis, not a feature generation/promotion loop.

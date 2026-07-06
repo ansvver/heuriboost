@@ -50,6 +50,47 @@ A historical failure expressed as a gate: `must_include_doc_ids` /
 training row. Requires trusted/human-reviewed labels, not LLM-judged ones.
 _Avoid_: test case, golden (golden = the broader trusted eval set)
 
+**Feature**:
+A prediction-time signal computed from a Query-Document Example and used by the
+Reranker to compare documents within a query group.
+_Avoid_: heuristic (too loose), label-derived signal
+
+**Feature Recipe**:
+The reviewed metadata contract for a Feature, including its name, safe inputs,
+task profile, leakage risk, and ownership.
+
+**Feature Input Boundary**:
+The prediction-time fields a Feature may observe: `query_text`, `doc_text`,
+`dense_rank`, `dense_score`, `sparse_rank`, and `sparse_score`.
+_Avoid_: labels, splits, IDs, regression results, ledger state, clicks, online
+LLM judgments
+
+**Candidate Feature**:
+A proposed Feature that is not yet part of the shipped feature set and is
+evaluated as a temporary probe before promotion.
+_Avoid_: discovered feature (sounds already accepted)
+
+**Candidate Feature Discovery**:
+The manually triggered process that proposes Candidate Features from pending
+Regression cases and failure analysis, ending when those candidates are ready
+for human review or explicit Auto-Ablation.
+_Avoid_: feature mining, 特征挖掘 (ambiguous with sample mining)
+
+**Auto-Ablation**:
+The explicit continuation from Candidate Feature Discovery that runs ablation
+for each valid Candidate Feature without an intervening manual review step.
+_Avoid_: auto-promotion
+
+**Feature Disposition**:
+The post-ablation decision for a Candidate Feature: `promote`, `reject`, or
+`quarantine`.
+_Avoid_: auto-promotion (promotion is manual)
+
+**case_sets mining**:
+The process that mines additional Query-Document Examples for pending Regression
+cases to train repair rounds.
+_Avoid_: Candidate Feature Discovery, feature mining, 特征挖掘
+
 **LLM-judged label**:
 A relevance grade assigned by an LLM at dataset *build time* and baked into the
 committed CSV. Medium confidence. May feed training and evaluation; may NOT
@@ -67,6 +108,34 @@ to grade labels.
 - A **Query-Document Example** belongs to exactly one `query_id` group.
 - A **Regression case** references documents by ID and is evaluated against a
   reranked `top_k`; it never enters training.
+- A **Feature Recipe** describes exactly one **Feature** or Candidate Feature.
+- Every **Feature** and Candidate Feature must stay within the **Feature Input
+  Boundary**.
+- **Candidate Feature Discovery** proposes Candidate Features from pending
+  Regression cases; **case_sets mining** produces training examples instead.
+- A **Candidate Feature Discovery** round has one shared candidate budget across
+  all pending Regression cases, not one budget per case; the current round
+  budget is at most five Candidate Features.
+- The Candidate Feature budget is an upper bound; invalid or duplicate
+  candidates are dropped and not automatically backfilled.
+- A **Candidate Feature Discovery** round succeeds only if at least one
+  Candidate Feature is ready for human review or Auto-Ablation.
+- **Auto-Ablation** may produce a **Feature Disposition** for every valid
+  Candidate Feature immediately after discovery, but it never promotes features.
+- **Auto-Ablation** does not pick a winner among promoted candidates; human
+  promotion still happens one Candidate Feature at a time.
+- **Auto-Ablation** is fail-fast: if one Candidate Feature cannot be ablated,
+  the round stops before later candidates run.
+- A **Candidate Feature Discovery** round considers all pending Regression
+  cases together; it does not target a manually selected subset by default.
+- A **Candidate Feature Discovery** round must not silently omit pending
+  Regression cases; oversized rounds must be split explicitly.
+- **Candidate Feature Discovery** does not decide whether a Candidate Feature
+  is useful; ablation produces the **Feature Disposition**.
+- A Candidate Feature becomes a shipped **Feature** only after ablation
+  recommends `promote` and a human updates the feature set.
+- Candidate Features are promoted one at a time; multiple promising candidates
+  must not be merged as a batch without re-evaluation.
 - An **LLM-judged label** may grade a Query-Document Example but may not
   promote that example into a Regression case.
 
@@ -77,6 +146,11 @@ to grade labels.
 > **Domain expert:** "No. LLM-judged labels can train and evaluate the
 > **Reranker**, but a **Regression case** needs a trusted label. Hand-review a
 > small subset for the gate; let the rest stay training labels."
+>
+> **Dev:** "Should `case_sets mining` create new **Candidate Features**?"
+> **Domain expert:** "No. **case_sets mining** creates training examples for
+> repair rounds; **Candidate Feature Discovery** creates feature probes that
+> still need ablation."
 
 **FiQA demo**:
 The single committed real-dataset demo: a slice of BEIR/FiQA-2018 (~150 train /
@@ -96,3 +170,6 @@ is now the only live demo.
   spec-level future vision, not V0.
 - "ranking" was ambiguous between document reranking and add-on recommendation
   ranking — resolved: HeuriBoost V0 is query-document reranking only.
+- "feature mining" / "特征挖掘" was ambiguous between **Candidate Feature
+  Discovery** and **case_sets mining** — resolved: use Candidate Feature
+  Discovery for feature probes and case_sets mining for training examples.

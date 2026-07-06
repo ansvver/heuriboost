@@ -21,8 +21,8 @@ command details a maintainer needs day to day.
 ## Feature registry
 
 Every feature is a declared `FeatureRecipe`, not scattered code. The source of
-truth is `skills/heuriboost-rag/templates/feature_recipes.yaml`; the Python
-implementation lives in `skills/heuriboost-rag/scripts/features/`
+truth is `plugins/heuriboost/skills/heuriboost-rag/templates/feature_recipes.yaml`; the Python
+implementation lives in `plugins/heuriboost/skills/heuriboost-rag/scripts/features/`
 (`registry.py`, `primitives.py`, `recipes.py`).
 
 Each recipe carries the spec §6.4 required fields:
@@ -53,6 +53,19 @@ hard-fails (SystemExit) on a missing impl, a disallowed input, an
 The trained model's `reranker_metadata.json` records `feature_set_name`,
 `feature_set_version`, and a per-feature `feature_versions` dict.
 
+Current V0 feature set has 12 baseline features:
+
+- Retriever priors: `dense_score`, `dense_rank_inverse`, `sparse_score`,
+  `sparse_rank_inverse`, `rrf_score`.
+- Query/document overlap: `term_overlap_ratio`, `number_overlap_count`,
+  `entity_overlap_count`, `important_term_overlap`.
+- Length / density: `low_information_density_flag`, `doc_length_log`,
+  `query_length_log`.
+
+This is the "baseline 12" referenced by ablation. A Candidate Feature is
+appended as the 13th feature during ablation only; it does not enter the shipped
+feature set until a human explicitly promotes it.
+
 ## HPO
 
 `scripts/run_hpo.py` searches XGBoost params via the `HPOEngine` adapter
@@ -60,8 +73,8 @@ The trained model's `reranker_metadata.json` records `feature_set_name`,
 (`optuna` in `requirements-build.txt`), not a runtime one.
 
 ```bash
-python -m pip install -r skills/heuriboost-rag/requirements-build.txt
-python3 skills/heuriboost-rag/scripts/run_hpo.py examples/fiqa/query_doc_examples.csv \
+python -m pip install -r plugins/heuriboost/skills/heuriboost-rag/requirements-build.txt
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/run_hpo.py examples/fiqa/query_doc_examples.csv \
   --output-dir examples/fiqa/output --n-trials 20 --seed 42 [--timeout-sec 120]
 ```
 
@@ -69,6 +82,20 @@ Outputs land in `examples/fiqa/output/hpo/` (gitignored): `hpo_report.md`
 (val + test nDCG@10 + val−test gap + trial table), `best_params.json`
 (params + `best_iteration` + scores + feature_set attribution), `trials.json`
 (full trial history).
+
+Trial budget semantics:
+
+- One trial is one Optuna objective evaluation: one sampled XGBoost parameter
+  set trained and scored on the fixed train/validation snapshots.
+- `--n-trials N` is a budget over sampled parameter sets, not over features.
+  A timeout or interrupt may stop before all requested trials complete.
+- The current search space is fixed to 7 XGBoost params: `max_depth`,
+  `min_child_weight`, `eta`, `subsample`, `colsample_bytree`, `gamma`,
+  `reg_lambda`.
+- Feature count can justify a larger budget because the objective landscape may
+  change, but comparisons must not give one side a larger `n_trials` budget.
+- Practical budgets: `1` smoke, `5` quick check, `20` V0 default, `50+` for
+  larger feature sets or unstable results.
 
 Key contracts (see `.trellis/spec/backend/hpo-contracts.md`):
 
@@ -91,7 +118,7 @@ Key contracts (see `.trellis/spec/backend/hpo-contracts.md`):
 candidate feature, it tests whether the candidate helps after fair HPO tuning.
 
 ```bash
-python3 skills/heuriboost-rag/scripts/run_ablation.py examples/fiqa/query_doc_examples.csv \
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/run_ablation.py examples/fiqa/query_doc_examples.csv \
   --candidate-recipe candidate_recipe.yaml \
   --candidate-impl candidate_impl.py:candidate \
   --output-dir examples/fiqa/output --n-trials 5 --seed 42 \
@@ -108,6 +135,14 @@ procedure; B and D use the same HPO budget + seed. Outputs land in
 `examples/fiqa/output/ablation/` (gitignored): `ablation_report.md` (cell
 table + deltas + recommendation) + `ablation_result.json`.
 
+`--n-trials N` applies independently to the two HPO cells: B runs N trials for
+baseline 12, and D runs N trials for baseline 12 + the candidate. A/C use fixed
+params and run no HPO. Cost per candidate is therefore roughly `2N` HPO trials;
+auto-ablation with `C` valid candidates costs roughly `C * 2N` trials. Example:
+5 candidates with `--ablation-n-trials 20` requests about `5 * (20 + 20) = 200`
+HPO trials. B and D must keep identical `n_trials` and `seed`; otherwise D-B is
+confounded by search budget instead of measuring the candidate feature.
+
 Deltas: B-A (param gain), C-A (feature-only), **D-B (candidate gain after
 tuning — primary)**, D-C (tuning gain with candidate).
 
@@ -116,6 +151,10 @@ Recommendation (report only — promotion is always manual):
 - `reject` iff D-B(val) ≤ 0 OR D regresses a gate case.
 - `quarantine` otherwise.
 
+If multiple candidates receive `promote` recommendations, merge at most one,
+then retrain/evaluate before reconsidering the next. Do not batch-merge
+candidate features.
+
 The dual val+test+gate check avoids cherry-picking HPO-overfit validation
 noise. See `.trellis/spec/backend/ablation-contracts.md` for full contracts.
 
@@ -123,29 +162,61 @@ noise. See `.trellis/spec/backend/ablation-contracts.md` for full contracts.
 
 `scripts/run_discover_candidates.py` reads the per-case `failure_analysis.md`
 for PENDING regression cases + the existing feature set, calls an LLM ONCE
-(DeepSeek, JSON mode) to propose N candidate features, validates them
-statically, and writes candidate files ready for `run_ablation.py`.
+(DeepSeek, JSON mode) to propose up to 5 candidate features for the whole
+discovery round, validates them statically, and writes candidate files ready
+for `run_ablation.py`.
 
 ```bash
 export DEEPSEEK_API_KEY=sk-...
-python3 skills/heuriboost-rag/scripts/run_discover_candidates.py \
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/run_discover_candidates.py \
   --out-dir examples/fiqa/output/discovery --n-candidates 5
 ```
 
 Outputs land in `examples/fiqa/output/discovery/` (gitignored):
 `candidates/<name>/{recipe.yaml, impl.py}` per valid candidate +
-`candidates_report.md` (table + a "⚠ review impl.py before running ablation"
-warning).
+`candidates_report.md` (table + a review or auto-ablation warning).
 
 The LLM sees pending cases' Feature Contrast + Suggested Actions + existing
 feature names + the primitives API + `ALLOWED_INPUTS` + the recipe schema —
 NOT labels, NOT case rows, NOT the full `extract_all` source. Generated
 `impl_code` is validated statically (`ast.parse` + `def candidate` + import
 allowlist); it is NOT `importlib`-loaded during generation (untrusted). The
-user reviews `impl.py`, then runs `run_ablation.py` on a candidate to test it.
+default path is to review `impl.py`, then run `run_ablation.py` on a candidate
+to test it.
 
-Invalid candidates are dropped + warned (1 LLM call, no retry). See
-`.trellis/spec/backend/discovery-contracts.md` for full contracts.
+To enter ablation automatically after discovery, pass `--auto-ablate`:
+
+```bash
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/run_discover_candidates.py \
+  --out-dir examples/fiqa/output/discovery \
+  --n-candidates 5 \
+  --auto-ablate \
+  --dataset examples/fiqa/query_doc_examples.csv \
+  --ablation-n-trials 20 \
+  --ablation-output-dir examples/fiqa/output/discovery/auto_ablation
+```
+
+Auto-ablation runs one `run_ablation.py` subprocess per valid candidate. Each
+candidate writes under `<ablation-output-dir>/<candidate>/ablation/`, and
+discovery writes `<out-dir>/auto_ablation_report.md`. It is fail-fast: a failed
+candidate stops later candidates from running. Multiple `promote`
+recommendations are reported as-is; no winner is selected automatically.
+Promotion remains manual. `--ablation-n-trials N` is per candidate and maps
+directly to `run_ablation.py --n-trials N`.
+
+`--n-candidates` is a shared round budget across all pending cases, not a
+per-case budget. The CLI accepts `1..5`.
+
+Discovery uses all `status: pending` regression cases from the configured
+regression case file. There is no case subset filter today.
+
+If the constructed prompt exceeds the local 24,000-character budget, discovery
+fails before the LLM call. It does not auto-truncate pending cases.
+
+Invalid candidates are dropped + warned (1 LLM call, no retry). If zero valid
+candidates remain, `candidates_report.md` is still written and the command
+exits non-zero. See `.trellis/spec/backend/discovery-contracts.md` for full
+contracts.
 
 ## CSV contract
 
@@ -243,13 +314,13 @@ confirmed.
 
 ```bash
 # After an eval round, set the anchor (manual, one-time or on confirmed gains):
-python skills/heuriboost-rag/scripts/regression_ledger.py set-anchor --ledger examples/fiqa/ledger.json
+python plugins/heuriboost/skills/heuriboost-rag/scripts/regression_ledger.py set-anchor --ledger examples/fiqa/ledger.json
 
 # Print a progress summary (gate/pending counts, promotion candidates, baseline line):
-python skills/heuriboost-rag/scripts/regression_ledger.py summary --ledger examples/fiqa/ledger.json
+python plugins/heuriboost/skills/heuriboost-rag/scripts/regression_ledger.py summary --ledger examples/fiqa/ledger.json
 
 # Promote a pending case to gate (interactive confirmation, no auto-promotion):
-python skills/heuriboost-rag/scripts/regression_ledger.py promote examples/fiqa/regression_cases.yaml <case_id> --ledger examples/fiqa/ledger.json
+python plugins/heuriboost/skills/heuriboost-rag/scripts/regression_ledger.py promote examples/fiqa/regression_cases.yaml <case_id> --ledger examples/fiqa/ledger.json
 ```
 
 The anchored-baseline comparison is **reported, not auto-blocking** in the
@@ -316,19 +387,19 @@ Label aliases for `base_dataset.relevance`:
 Commands:
 
 ```bash
-python3 skills/heuriboost-rag/scripts/compile_cases.py \
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/compile_cases.py \
   --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
   --production-cases examples/fiqa/repair/production_cases_full.csv \
   --output-dir examples/fiqa/output \
   --strict
 
-python3 skills/heuriboost-rag/scripts/repair_reranker.py \
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/repair_reranker.py \
   --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
   --production-cases examples/fiqa/repair/production_cases_full.csv \
   --output-dir examples/fiqa/output \
   --reckless
 
-python3 skills/heuriboost-rag/scripts/promote_repair.py \
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/promote_repair.py \
   --output-dir examples/fiqa/output
 ```
 
@@ -368,26 +439,26 @@ The four-command closed loop (run by the maintainer; no auto-promotion):
 
 ```bash
 # 1. Mine same-pattern samples for all pending cases (needs build deps)
-python skills/heuriboost-rag/scripts/mine_case_sets.py \
+python plugins/heuriboost/skills/heuriboost-rag/scripts/mine_case_sets.py \
   --dataset examples/fiqa/query_doc_examples.csv \
   --cases examples/fiqa/regression_cases.yaml \
   --out-dir examples/fiqa/case_sets
 
 # 2. Retrain with mined samples folded into the train split
-python skills/heuriboost-rag/scripts/train_reranker.py \
+python plugins/heuriboost/skills/heuriboost-rag/scripts/train_reranker.py \
   examples/fiqa/query_doc_examples.csv \
   --output-dir examples/fiqa/output \
   --case-sets examples/fiqa/case_sets \
   --regression-cases examples/fiqa/regression_cases.yaml
 
 # 2b. Reckless variant: omit --case-sets to default to examples/fiqa/case_sets
-python skills/heuriboost-rag/scripts/train_reranker.py \
+python plugins/heuriboost/skills/heuriboost-rag/scripts/train_reranker.py \
   examples/fiqa/query_doc_examples.csv \
   --output-dir examples/fiqa/output \
   --reckless
 
 # 3. Eval + ledger (tags the round as having used case_sets)
-python skills/heuriboost-rag/scripts/eval_reranker.py \
+python plugins/heuriboost/skills/heuriboost-rag/scripts/eval_reranker.py \
   examples/fiqa/query_doc_examples.csv \
   --output-dir examples/fiqa/output \
   --split validation \
@@ -395,14 +466,14 @@ python skills/heuriboost-rag/scripts/eval_reranker.py \
   --case-sets-used
 
 # 3b. Reckless acceptance: evaluate test and require anchor improvement
-python skills/heuriboost-rag/scripts/eval_reranker.py \
+python plugins/heuriboost/skills/heuriboost-rag/scripts/eval_reranker.py \
   examples/fiqa/query_doc_examples.csv \
   --output-dir examples/fiqa/output \
   --split test \
   --reckless
 
 # 4. (manual) If a pending case passed AND the baseline check is OK, promote it
-python skills/heuriboost-rag/scripts/regression_ledger.py promote \
+python plugins/heuriboost/skills/heuriboost-rag/scripts/regression_ledger.py promote \
   examples/fiqa/regression_cases.yaml <case_id> --ledger examples/fiqa/ledger.json
 ```
 
@@ -442,7 +513,7 @@ discovery.
 
 ## Agent skill
 
-The Codex-compatible skill lives in `skills/heuriboost-rag/SKILL.md` and exposes
+The Codex-compatible skill lives in `plugins/heuriboost/skills/heuriboost-rag/SKILL.md` and exposes
 three modes:
 
 - `audit` — scan a RAG repo for retriever/eval/log/dataset signals
@@ -460,17 +531,17 @@ retrieval (FiQA ships no candidates), then labels with one of two modes.
 Heuristic mode — zero-cost, deterministic, no LLM (this produced the committed CSV):
 
 ```bash
-python -m pip install -r skills/heuriboost-rag/requirements-build.txt
-python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
+python -m pip install -r plugins/heuriboost/skills/heuriboost-rag/requirements-build.txt
+python plugins/heuriboost/skills/heuriboost-rag/scripts/build_fiqa_csv.py \
   --label-mode heuristic --output examples/fiqa/query_doc_examples.csv
 ```
 
 LLM mode — full 5-level labels via an OpenAI-compatible judge (DeepSeek by default):
 
 ```bash
-python -m pip install -r skills/heuriboost-rag/requirements-build.txt
+python -m pip install -r plugins/heuriboost/skills/heuriboost-rag/requirements-build.txt
 export DEEPSEEK_API_KEY=sk-...   # or OPENAI_API_KEY with --base-url ""
-python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
+python plugins/heuriboost/skills/heuriboost-rag/scripts/build_fiqa_csv.py \
   --label-mode llm --output examples/fiqa/query_doc_examples.csv
 ```
 

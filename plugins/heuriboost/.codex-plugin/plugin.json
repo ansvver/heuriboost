@@ -1,0 +1,35 @@
+{
+  "name": "heuriboost",
+  "version": "0.1.0+codex.20260706094407",
+  "description": "Failure-driven RAG reranking and reckless production-case repair skills for Codex.",
+  "author": {
+    "name": "ansvver",
+    "url": "https://github.com/ansvver"
+  },
+  "homepage": "https://github.com/ansvver/heuriboost",
+  "repository": "https://github.com/ansvver/heuriboost",
+  "keywords": [
+    "rag",
+    "reranking",
+    "xgboost",
+    "regression-gates",
+    "codex-skills"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "HeuriBoost",
+    "shortDescription": "RAG reranking repair workflows for Codex.",
+    "longDescription": "HeuriBoost packages Codex skills for failure-driven RAG reranking, query-document experiments, and reckless production-case repair input preparation.",
+    "developerName": "ansvver",
+    "category": "AI & Data",
+    "capabilities": [
+      "Write"
+    ],
+    "websiteURL": "https://github.com/ansvver/heuriboost",
+    "defaultPrompt": [
+      "Audit this RAG repo for HeuriBoost readiness.",
+      "Run a HeuriBoost experiment from my query-document CSV.",
+      "Build reckless repair inputs from production feedback logs."
+    ]
+  }
+}

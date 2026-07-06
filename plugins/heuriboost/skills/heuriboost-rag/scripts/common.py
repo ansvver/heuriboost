@@ -22,6 +22,7 @@ from features.primitives import (
     tokenize,
 )
 
+SKILL_DIR = Path(__file__).resolve().parent.parent
 FEATURE_NAMES = REGISTRY.names()
 
 REQUIRED_COLUMNS = {
@@ -69,7 +70,7 @@ def require_dependencies(*names: str) -> None:
         print(f"Missing required Python dependencies: {deps}", file=sys.stderr)
         print(
             "Install them with: python -m pip install -r "
-            "skills/heuriboost-rag/requirements.txt",
+            f"{SKILL_DIR / 'requirements.txt'}",
             file=sys.stderr,
         )
         raise SystemExit(2)

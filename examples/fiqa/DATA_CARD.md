@@ -22,7 +22,7 @@ Provenance record for the committed HeuriBoost FiQA demo dataset
 ## Retriever Configuration
 
 Candidates and retriever scores are produced offline by
-`skills/heuriboost-rag/scripts/build_fiqa_csv.py`. FiQA does not ship a
+`plugins/heuriboost/skills/heuriboost-rag/scripts/build_fiqa_csv.py`. FiQA does not ship a
 candidate set, so the build script runs retrieval itself:
 
 - **Sparse**: BM25 via `rank_bm25` (`BM25Okapi`) over the sliced corpus.
@@ -91,7 +91,7 @@ NOT committed:
   `examples/fiqa/.cache/`, gitignored, plus the standard Hugging Face cache).
 - The `all-MiniLM-L6-v2` model weights (standard Hugging Face cache).
 - The build-time Python packages
-  (`skills/heuriboost-rag/requirements-build.txt`): `rank-bm25`,
+  (`plugins/heuriboost/skills/heuriboost-rag/requirements-build.txt`): `rank-bm25`,
   `sentence-transformers`, `datasets`, `openai`.
 
 ## Regenerating
@@ -99,17 +99,17 @@ NOT committed:
 Heuristic mode (no LLM, no API key):
 
 ```bash
-python -m pip install -r skills/heuriboost-rag/requirements-build.txt
-python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
+python -m pip install -r plugins/heuriboost/skills/heuriboost-rag/requirements-build.txt
+python plugins/heuriboost/skills/heuriboost-rag/scripts/build_fiqa_csv.py \
   --label-mode heuristic --output examples/fiqa/query_doc_examples.csv
 ```
 
 LLM mode (DeepSeek by default):
 
 ```bash
-python -m pip install -r skills/heuriboost-rag/requirements-build.txt
+python -m pip install -r plugins/heuriboost/skills/heuriboost-rag/requirements-build.txt
 export DEEPSEEK_API_KEY=sk-...   # or OPENAI_API_KEY with --base-url ""
-python skills/heuriboost-rag/scripts/build_fiqa_csv.py \
+python plugins/heuriboost/skills/heuriboost-rag/scripts/build_fiqa_csv.py \
   --label-mode llm --output examples/fiqa/query_doc_examples.csv
 ```
 
@@ -123,7 +123,7 @@ regression cases. They are derived from the main CSV by
 `mine_case_sets.py` and are regeneratable:
 
 ```bash
-python skills/heuriboost-rag/scripts/mine_case_sets.py \
+python plugins/heuriboost/skills/heuriboost-rag/scripts/mine_case_sets.py \
   --dataset examples/fiqa/query_doc_examples.csv \
   --cases examples/fiqa/regression_cases.yaml \
   --out-dir examples/fiqa/case_sets

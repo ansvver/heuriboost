@@ -4,13 +4,13 @@ Use this reference when turning raw user materials into HeuriBoost reckless-mode
 repair inputs. The goal is to create the two user-facing files consumed by:
 
 ```bash
-python3 skills/heuriboost-rag/scripts/compile_cases.py \
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/compile_cases.py" \
   --base-dataset <base_dataset.csv|jsonl|json> \
   --production-cases <production_cases.csv|jsonl|json> \
   --output-dir <dir> \
   [--strict] [--resplit]
 
-python3 skills/heuriboost-rag/scripts/repair_reranker.py \
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/repair_reranker.py" \
   --base-dataset <base_dataset.csv|jsonl|json> \
   --production-cases <production_cases.csv|jsonl|json> \
   --output-dir <dir> \

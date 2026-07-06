@@ -117,20 +117,52 @@ drops from 2.33 (dense) to 0.63.
 ## Quick start
 
 ```bash
+HEURIBOOST_RAG_SKILL_DIR=plugins/heuriboost/skills/heuriboost-rag
+
 # install runtime deps (on macOS, also: brew install libomp for xgboost)
-python -m pip install -r skills/heuriboost-rag/requirements.txt
+python -m pip install -r "$HEURIBOOST_RAG_SKILL_DIR/requirements.txt"
 
 # validate -> train -> evaluate the committed FiQA demo
-python3 skills/heuriboost-rag/scripts/validate_dataset.py examples/fiqa/query_doc_examples.csv
-python3 skills/heuriboost-rag/scripts/train_reranker.py  examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output
-python3 skills/heuriboost-rag/scripts/eval_reranker.py   examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/validate_dataset.py" examples/fiqa/query_doc_examples.csv
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/train_reranker.py"  examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/eval_reranker.py"   examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --regression-cases examples/fiqa/regression_cases.yaml
+```
+
+## Codex plugin
+
+This repo includes a repo-local Codex plugin at `plugins/heuriboost/`. It
+packages two skills:
+
+| Skill | Use it for |
+|---|---|
+| `$heuriboost:heuriboost-rag` | Audit a RAG repo, bootstrap templates, validate/train/evaluate query-document CSVs. |
+| `$heuriboost:reckless-input-builder` | Turn messy logs, spreadsheets, tickets, labels, CSV/JSON/JSONL exports, and production feedback into `base_dataset` + `production_cases` files for reckless repair. |
+
+Install it into Codex from this checkout:
+
+```bash
+codex plugin marketplace add .
+codex plugin add heuriboost@heuriboost-local
+```
+
+Start a new Codex thread after installing or reinstalling so the namespaced
+skills are injected into the prompt.
+
+Typical prompts:
+
+```text
+Use $heuriboost:heuriboost-rag to audit this RAG repo for HeuriBoost readiness.
+Use $heuriboost:heuriboost-rag to run an experiment from examples/fiqa/query_doc_examples.csv.
+Use $heuriboost:reckless-input-builder to turn these production feedback logs into reckless repair input files.
 ```
 
 To run the lower-level reckless closed-loop variant:
 
 ```bash
-python3 skills/heuriboost-rag/scripts/train_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --reckless
-python3 skills/heuriboost-rag/scripts/eval_reranker.py examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --split test --reckless
+HEURIBOOST_RAG_SKILL_DIR=plugins/heuriboost/skills/heuriboost-rag
+
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/train_reranker.py" examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --reckless
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/eval_reranker.py" examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output --split test --reckless
 ```
 
 ### Reckless mode: production-case fast repair
@@ -144,11 +176,10 @@ user-facing path needs only two tables:
   columns `query,shown_doc_text,user_verdict`.
 
 If your material starts as messy logs, spreadsheets, tickets, labels, or
-CSV/JSON/JSONL exports, use the AI-facing input builder spec in
-`skills/reckless-input-builder/`. It tells an agent how to map raw retrieval
-candidates, accepted/rejected documents, ranks, scores, and user feedback into
-these two files, how to choose full vs weak acceptance, and how to validate the
-result with `compile_cases.py`.
+CSV/JSON/JSONL exports, use `$heuriboost:reckless-input-builder`. It tells an
+agent how to map raw retrieval candidates, accepted/rejected documents, ranks,
+scores, and user feedback into these two files, how to choose full vs weak
+acceptance, and how to validate the result with `compile_cases.py`.
 
 The repair compiler expands those two tables into the internal
 `query_doc_examples.csv`, `regression_cases.yaml`, and `case_sets/` artifacts
@@ -156,19 +187,21 @@ under `output/.heuriboost/compiled/`. Those files are audit/debug output, not
 the user contract.
 
 ```bash
-python3 skills/heuriboost-rag/scripts/compile_cases.py \
+HEURIBOOST_RAG_SKILL_DIR=plugins/heuriboost/skills/heuriboost-rag
+
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/compile_cases.py" \
   --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
   --production-cases examples/fiqa/repair/production_cases_full.csv \
   --output-dir examples/fiqa/output \
   --strict
 
-python3 skills/heuriboost-rag/scripts/repair_reranker.py \
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/repair_reranker.py" \
   --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
   --production-cases examples/fiqa/repair/production_cases_full.csv \
   --output-dir examples/fiqa/output \
   --reckless
 
-python3 skills/heuriboost-rag/scripts/promote_repair.py \
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/promote_repair.py" \
   --output-dir examples/fiqa/output
 ```
 
@@ -260,12 +293,12 @@ Full definitions are in
 ```text
 .
 ├── README.md / README.zh-CN.md      project story, concepts, demo
+├── .agents/plugins/marketplace.json repo-local Codex plugin marketplace
 ├── docs/
 │   ├── REFERENCE.md                  contracts + commands (operational reference)
 │   └── specs/                        long-form design specs
 ├── examples/fiqa/                    the committed FiQA demo + cases + ledger
-├── skills/heuriboost-rag/            the Codex skill + runnable scripts + templates
-└── skills/reckless-input-builder/    AI-facing spec for building reckless inputs
+└── plugins/heuriboost/               Codex plugin packaging both skills and the runtime
 ```
 
 There is no `pyproject.toml` yet — run the skill-local scripts directly.
