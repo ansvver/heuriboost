@@ -142,6 +142,150 @@
         "fiqa_combined_contribution_limits",
         "fiqa_solicitation_of_security"
       ]
+    },
+    {
+      "round_id": "2026-07-06T09:17:48Z",
+      "split": "validation",
+      "global": {
+        "ndcg@10": 0.8534340982795424,
+        "mrr@10": 0.8739583333333334
+      },
+      "cases": [
+        {
+          "case_id": "fiqa_financial_security_definition",
+          "status": "gate",
+          "original_status": null,
+          "passed": true
+        },
+        {
+          "case_id": "fiqa_non_homeowners_house_insurance",
+          "status": "gate",
+          "original_status": null,
+          "passed": true
+        },
+        {
+          "case_id": "fiqa_solicitation_of_security",
+          "status": "pending",
+          "original_status": null,
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_business_expenses_no_income",
+          "status": "pending",
+          "original_status": null,
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_combined_contribution_limits",
+          "status": "pending",
+          "original_status": null,
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_aggressive_roth_401k_taxable",
+          "status": "pending",
+          "original_status": null,
+          "passed": false
+        }
+      ],
+      "vs_anchor": {
+        "ndcg@10": 0.0,
+        "ndcg@10_regressed": false,
+        "mrr@10": 0.0,
+        "mrr@10_regressed": false,
+        "regressed": false
+      },
+      "case_sets_used": false,
+      "reckless_mode": false,
+      "reckless_source_case_ids": []
+    },
+    {
+      "round_id": "2026-07-06T10:06:03Z",
+      "split": "validation",
+      "global": {
+        "ndcg@10": 0.8534340982795424,
+        "mrr@10": 0.8739583333333334
+      },
+      "cases": [
+        {
+          "case_id": "fiqa_financial_security_definition",
+          "status": "gate",
+          "original_status": null,
+          "passed": true
+        },
+        {
+          "case_id": "fiqa_non_homeowners_house_insurance",
+          "status": "gate",
+          "original_status": null,
+          "passed": true
+        },
+        {
+          "case_id": "fiqa_solicitation_of_security",
+          "status": "pending",
+          "original_status": null,
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_business_expenses_no_income",
+          "status": "pending",
+          "original_status": null,
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_combined_contribution_limits",
+          "status": "pending",
+          "original_status": null,
+          "passed": false
+        },
+        {
+          "case_id": "fiqa_aggressive_roth_401k_taxable",
+          "status": "pending",
+          "original_status": null,
+          "passed": false
+        }
+      ],
+      "vs_anchor": {
+        "ndcg@10": 0.0,
+        "ndcg@10_regressed": false,
+        "mrr@10": 0.0,
+        "mrr@10_regressed": false,
+        "regressed": false
+      },
+      "case_sets_used": false,
+      "reckless_mode": false,
+      "reckless_source_case_ids": []
+    },
+    {
+      "round_id": "2026-07-06T10:20:03Z",
+      "split": "validation",
+      "global": {
+        "ndcg@10": 0.4077324383928644,
+        "mrr@10": 0.22916666666666666
+      },
+      "cases": [
+        {
+          "case_id": "fiqa_non_homeowners_house_insurance",
+          "status": "gate",
+          "original_status": null,
+          "passed": true
+        },
+        {
+          "case_id": "fiqa_business_expenses_no_income",
+          "status": "pending",
+          "original_status": null,
+          "passed": false
+        }
+      ],
+      "vs_anchor": {
+        "ndcg@10": -0.44570165988667804,
+        "ndcg@10_regressed": true,
+        "mrr@10": -0.6447916666666668,
+        "mrr@10_regressed": true,
+        "regressed": true
+      },
+      "case_sets_used": false,
+      "reckless_mode": false,
+      "reckless_source_case_ids": []
     }
   ]
 }

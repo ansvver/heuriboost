@@ -7,6 +7,7 @@ HeuriBoost Q-D reranker 的操作参考。[README](../README.zh-CN.md) 讲故事
 - [HPO](#hpo)
 - [消融](#消融)
 - [候选发现](#候选发现)
+- [可复现 FiQA discovery 实验](#可复现-fiqa-discovery-实验)
 - [CSV 契约](#csv-契约)
 - [标签含义](#标签含义)
 - [Regression cases](#regression-cases)
@@ -203,6 +204,191 @@ Discovery 使用配置的 regression case 文件里所有 `status: pending` 的 
 无效候选丢弃+告警（1 次 LLM 调用，无重试）。如果最后 0 个有效候选，
 仍会写出 `candidates_report.md`，然后命令非零退出。完整契约见
 `.trellis/spec/backend/discovery-contracts.md`。
+
+## 可复现 FiQA discovery 实验
+
+本节记录 2026-07-06 的 FiQA discovery 实验：真实 DeepSeek LLM 生成候选特征，
+写出候选文件，并自动进入 ablation，最终得到 `promote` 推荐。真实 API key 只放在
+shell 环境中；文档和命令记录统一写成 `DEEPSEEK_API_KEY=<redacted>`。
+
+先跑 committed full-pending round，结果没有候选被 promote。随后构造 targeted
+FiQA CSV 并跑通成功 demo。该 targeted CSV 仅是 pipeline-validation，不是完整
+benchmark：它从 committed `examples/fiqa/query_doc_examples.csv` 派生，保持
+train/validation/test 的 `query_id` 不重叠，validation 使用 committed regression
+case 里的 `query_id=1084`（gate）和 `query_id=1`（pending），test 只用
+`query_id=106` 作为全局 D-B(test) query group。
+
+设置运行目录：
+
+```bash
+RUN_DIR=examples/fiqa/output/llm-discovery-success-20260706180533
+```
+
+预检查：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile \
+  plugins/heuriboost/skills/heuriboost-rag/scripts/*.py \
+  plugins/heuriboost/skills/heuriboost-rag/scripts/features/*.py \
+  plugins/heuriboost/skills/heuriboost-rag/scripts/hpo/*.py
+
+PYTHONDONTWRITEBYTECODE=1 python3 plugins/heuriboost/skills/heuriboost-rag/scripts/validate_dataset.py \
+  examples/fiqa/query_doc_examples.csv
+```
+
+训练/评估 committed FiQA CSV：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 plugins/heuriboost/skills/heuriboost-rag/scripts/train_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir "$RUN_DIR"
+
+PYTHONDONTWRITEBYTECODE=1 python3 plugins/heuriboost/skills/heuriboost-rag/scripts/eval_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir "$RUN_DIR" \
+  --regression-cases examples/fiqa/regression_cases.yaml \
+  --split validation
+```
+
+在 committed full pending set 上运行真实 LLM discovery + auto-ablation：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 DEEPSEEK_API_KEY=<redacted> \
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/run_discover_candidates.py \
+  --failure-analysis "$RUN_DIR/reports/failure_analysis.md" \
+  --regression-cases examples/fiqa/regression_cases.yaml \
+  --feature-recipes plugins/heuriboost/skills/heuriboost-rag/templates/feature_recipes.yaml \
+  --out-dir "$RUN_DIR/llm-discovery-full-pending" \
+  --n-candidates 5 \
+  --model deepseek-chat \
+  --base-url https://api.deepseek.com \
+  --temperature 0.7 \
+  --auto-ablate \
+  --dataset examples/fiqa/query_doc_examples.csv \
+  --ablation-n-trials 20 \
+  --ablation-seed 42 \
+  --ablation-promote-threshold 0.01 \
+  --ablation-split validation
+```
+
+Full-pending 结果：
+
+| candidate | recommendation | D-B(val) | D-B(test) | D gate |
+|---|---:|---:|---:|---:|
+| `dense_score_diff` | reject | -0.0004217951 | +0.0132585806 | 1/2 |
+| `entity_dense_interaction` | reject | -0.0004217951 | +0.0132585806 | 1/2 |
+| `entity_overlap_ratio` | reject | -0.0004217951 | +0.0132585806 | 1/2 |
+| `important_term_density` | reject | -0.0004217951 | +0.0132585806 | 1/2 |
+| `query_doc_length_ratio` | reject | -0.0004217951 | +0.0132585806 | 1/2 |
+
+在 gitignored run 目录下构造 targeted q106 FiQA CSV 和 targeted regression case：
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+import pandas as pd
+import yaml
+
+run_dir = Path("examples/fiqa/output/llm-discovery-success-20260706180533")
+target_dir = run_dir / "targeted-business-val-test-q106"
+target_dir.mkdir(parents=True, exist_ok=True)
+
+df = pd.read_csv("examples/fiqa/query_doc_examples.csv")
+target = df[df["split"].astype(str).eq("train")].copy()
+
+validation = df[df["query_id"].astype(str).isin({"1084", "1"})].copy()
+validation.loc[:, "split"] = "validation"
+
+test = df[df["query_id"].astype(str).eq("106")].copy()
+test.loc[:, "split"] = "test"
+
+pd.concat([target, validation, test], ignore_index=True).to_csv(
+    target_dir / "query_doc_examples.csv", index=False
+)
+
+cases = yaml.safe_load(Path("examples/fiqa/regression_cases.yaml").read_text())
+target_cases = [
+    c for c in cases["cases"]
+    if str(c.get("query_id")) in {"1084", "1"}
+]
+(target_dir / "regression_cases.yaml").write_text(
+    yaml.safe_dump({"cases": target_cases}, sort_keys=False),
+    encoding="utf-8",
+)
+PY
+
+PYTHONDONTWRITEBYTECODE=1 python3 plugins/heuriboost/skills/heuriboost-rag/scripts/validate_dataset.py \
+  "$RUN_DIR/targeted-business-val-test-q106/query_doc_examples.csv"
+```
+
+targeted CSV 校验通过：3262 行、153 个 query group；其中 train 3202 行，
+validation 40 行，test 20 行。
+
+训练/评估 targeted CSV，让 discovery 消费匹配的 `failure_analysis.md`：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 plugins/heuriboost/skills/heuriboost-rag/scripts/train_reranker.py \
+  "$RUN_DIR/targeted-business-val-test-q106/query_doc_examples.csv" \
+  --output-dir "$RUN_DIR/targeted-business-val-test-q106/reranker-run"
+
+PYTHONDONTWRITEBYTECODE=1 python3 plugins/heuriboost/skills/heuriboost-rag/scripts/eval_reranker.py \
+  "$RUN_DIR/targeted-business-val-test-q106/query_doc_examples.csv" \
+  --output-dir "$RUN_DIR/targeted-business-val-test-q106/reranker-run" \
+  --regression-cases "$RUN_DIR/targeted-business-val-test-q106/regression_cases.yaml" \
+  --split validation
+```
+
+targeted eval 生成 `reports/failure_analysis.md`；validation gates 1/1 pass，
+pending cases 0/1 pass。
+
+在 targeted CSV 上运行真实 DeepSeek discovery + auto-ablation：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 DEEPSEEK_API_KEY=<redacted> \
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/run_discover_candidates.py \
+  --failure-analysis "$RUN_DIR/targeted-business-val-test-q106/reranker-run/reports/failure_analysis.md" \
+  --regression-cases "$RUN_DIR/targeted-business-val-test-q106/regression_cases.yaml" \
+  --feature-recipes plugins/heuriboost/skills/heuriboost-rag/templates/feature_recipes.yaml \
+  --out-dir "$RUN_DIR/targeted-business-val-test-q106/llm-discovery" \
+  --n-candidates 5 \
+  --model deepseek-chat \
+  --base-url https://api.deepseek.com \
+  --temperature 0.7 \
+  --auto-ablate \
+  --dataset "$RUN_DIR/targeted-business-val-test-q106/query_doc_examples.csv" \
+  --ablation-n-trials 20 \
+  --ablation-seed 42 \
+  --ablation-promote-threshold 0.01 \
+  --ablation-split validation
+```
+
+Targeted real-LLM 结果：
+
+| candidate | recommendation | D-B(val) | D-B(test) | D gate |
+|---|---:|---:|---:|---:|
+| `dense_score_rank_hybrid` | promote | +0.1220384732 | +0.6437928129 | 1/1 |
+| `doc_self_information` | promote | +0.0219118754 | +0.2747225665 | 1/1 |
+| `query_doc_cosine_similarity` | promote | +0.3065735964 | +0.0306456201 | 1/1 |
+| `query_doc_entity_ratio` | quarantine | +0.1220384732 | +0.0000000000 | 1/1 |
+| `query_doc_jaccard_similarity` | promote | +0.0565735964 | +0.1437928129 | 1/1 |
+
+解析 ablation 结果：
+
+```bash
+for f in "$RUN_DIR"/targeted-business-val-test-q106/llm-discovery/auto_ablation/*/ablation/ablation_result.json; do
+  jq -r '[.candidate.name, .recommendation, (.deltas["D-B"].val|tostring), (.deltas["D-B"].test|tostring), (.cells.D.gate.gate_pass|tostring), (.cells.D.gate.gate_total|tostring)] | @tsv' "$f"
+done
+```
+
+清理和安全检查：
+
+```bash
+find plugins/heuriboost -name '*.pyc' -delete
+find plugins/heuriboost -type d -name '__pycache__' -empty -delete
+find plugins/heuriboost -name '__pycache__' -o -name '*.pyc'
+
+rg -n 'sk-[A-Za-z0-9]{10,}' "$RUN_DIR" docs/REFERENCE.md docs/REFERENCE.zh-CN.md || true
+```
 
 ## CSV 契约
 

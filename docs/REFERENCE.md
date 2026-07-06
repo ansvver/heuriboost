@@ -8,6 +8,7 @@ command details a maintainer needs day to day.
 - [HPO](#hpo)
 - [Ablation](#ablation)
 - [Candidate discovery](#candidate-discovery)
+- [Reproducible FiQA discovery experiment](#reproducible-fiqa-discovery-experiment)
 - [CSV contract](#csv-contract)
 - [Label scale](#label-scale)
 - [Regression cases](#regression-cases)
@@ -217,6 +218,196 @@ Invalid candidates are dropped + warned (1 LLM call, no retry). If zero valid
 candidates remain, `candidates_report.md` is still written and the command
 exits non-zero. See `.trellis/spec/backend/discovery-contracts.md` for full
 contracts.
+
+## Reproducible FiQA discovery experiment
+
+This record captures the July 6, 2026 FiQA discovery run that proved the real
+LLM -> candidate files -> auto-ablation path can produce `promote`
+recommendations. It uses DeepSeek as an OpenAI-compatible JSON-mode model; keep
+the real key in the shell only and write docs/command logs with
+`DEEPSEEK_API_KEY=<redacted>`.
+
+The committed full-pending round ran first and did **not** promote any
+candidate. A targeted FiQA CSV then succeeded. The targeted CSV is
+pipeline-validation only, not a full benchmark: it is derived from committed
+`examples/fiqa/query_doc_examples.csv` rows, keeps train/validation/test query
+IDs disjoint, uses committed regression cases `query_id=1084` (gate) and
+`query_id=1` (pending) on validation, and uses `query_id=106` only as the
+global D-B(test) query group.
+
+Set the run directory:
+
+```bash
+RUN_DIR=examples/fiqa/output/llm-discovery-success-20260706180533
+```
+
+Preflight:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile \
+  plugins/heuriboost/skills/heuriboost-rag/scripts/*.py \
+  plugins/heuriboost/skills/heuriboost-rag/scripts/features/*.py \
+  plugins/heuriboost/skills/heuriboost-rag/scripts/hpo/*.py
+
+PYTHONDONTWRITEBYTECODE=1 python3 plugins/heuriboost/skills/heuriboost-rag/scripts/validate_dataset.py \
+  examples/fiqa/query_doc_examples.csv
+```
+
+Train/evaluate the committed FiQA CSV:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 plugins/heuriboost/skills/heuriboost-rag/scripts/train_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir "$RUN_DIR"
+
+PYTHONDONTWRITEBYTECODE=1 python3 plugins/heuriboost/skills/heuriboost-rag/scripts/eval_reranker.py \
+  examples/fiqa/query_doc_examples.csv \
+  --output-dir "$RUN_DIR" \
+  --regression-cases examples/fiqa/regression_cases.yaml \
+  --split validation
+```
+
+Run real LLM discovery + auto-ablation on the committed full pending set:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 DEEPSEEK_API_KEY=<redacted> \
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/run_discover_candidates.py \
+  --failure-analysis "$RUN_DIR/reports/failure_analysis.md" \
+  --regression-cases examples/fiqa/regression_cases.yaml \
+  --feature-recipes plugins/heuriboost/skills/heuriboost-rag/templates/feature_recipes.yaml \
+  --out-dir "$RUN_DIR/llm-discovery-full-pending" \
+  --n-candidates 5 \
+  --model deepseek-chat \
+  --base-url https://api.deepseek.com \
+  --temperature 0.7 \
+  --auto-ablate \
+  --dataset examples/fiqa/query_doc_examples.csv \
+  --ablation-n-trials 20 \
+  --ablation-seed 42 \
+  --ablation-promote-threshold 0.01 \
+  --ablation-split validation
+```
+
+Full-pending result:
+
+| candidate | recommendation | D-B(val) | D-B(test) | D gate |
+|---|---:|---:|---:|---:|
+| `dense_score_diff` | reject | -0.0004217951 | +0.0132585806 | 1/2 |
+| `entity_dense_interaction` | reject | -0.0004217951 | +0.0132585806 | 1/2 |
+| `entity_overlap_ratio` | reject | -0.0004217951 | +0.0132585806 | 1/2 |
+| `important_term_density` | reject | -0.0004217951 | +0.0132585806 | 1/2 |
+| `query_doc_length_ratio` | reject | -0.0004217951 | +0.0132585806 | 1/2 |
+
+Build the targeted q106 FiQA CSV and targeted regression case file under the
+gitignored run directory:
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+import pandas as pd
+import yaml
+
+run_dir = Path("examples/fiqa/output/llm-discovery-success-20260706180533")
+target_dir = run_dir / "targeted-business-val-test-q106"
+target_dir.mkdir(parents=True, exist_ok=True)
+
+df = pd.read_csv("examples/fiqa/query_doc_examples.csv")
+target = df[df["split"].astype(str).eq("train")].copy()
+
+validation = df[df["query_id"].astype(str).isin({"1084", "1"})].copy()
+validation.loc[:, "split"] = "validation"
+
+test = df[df["query_id"].astype(str).eq("106")].copy()
+test.loc[:, "split"] = "test"
+
+pd.concat([target, validation, test], ignore_index=True).to_csv(
+    target_dir / "query_doc_examples.csv", index=False
+)
+
+cases = yaml.safe_load(Path("examples/fiqa/regression_cases.yaml").read_text())
+target_cases = [
+    c for c in cases["cases"]
+    if str(c.get("query_id")) in {"1084", "1"}
+]
+(target_dir / "regression_cases.yaml").write_text(
+    yaml.safe_dump({"cases": target_cases}, sort_keys=False),
+    encoding="utf-8",
+)
+PY
+
+PYTHONDONTWRITEBYTECODE=1 python3 plugins/heuriboost/skills/heuriboost-rag/scripts/validate_dataset.py \
+  "$RUN_DIR/targeted-business-val-test-q106/query_doc_examples.csv"
+```
+
+The targeted CSV validation passed with 3262 rows and 153 query groups:
+3202 train rows, 40 validation rows, and 20 test rows.
+
+Train/evaluate the targeted CSV so discovery has a matching
+`failure_analysis.md`:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 plugins/heuriboost/skills/heuriboost-rag/scripts/train_reranker.py \
+  "$RUN_DIR/targeted-business-val-test-q106/query_doc_examples.csv" \
+  --output-dir "$RUN_DIR/targeted-business-val-test-q106/reranker-run"
+
+PYTHONDONTWRITEBYTECODE=1 python3 plugins/heuriboost/skills/heuriboost-rag/scripts/eval_reranker.py \
+  "$RUN_DIR/targeted-business-val-test-q106/query_doc_examples.csv" \
+  --output-dir "$RUN_DIR/targeted-business-val-test-q106/reranker-run" \
+  --regression-cases "$RUN_DIR/targeted-business-val-test-q106/regression_cases.yaml" \
+  --split validation
+```
+
+Targeted eval produced `reports/failure_analysis.md`; validation gates were
+1/1 pass and pending cases were 0/1 pass.
+
+Run real DeepSeek discovery + auto-ablation on the targeted CSV:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 DEEPSEEK_API_KEY=<redacted> \
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/run_discover_candidates.py \
+  --failure-analysis "$RUN_DIR/targeted-business-val-test-q106/reranker-run/reports/failure_analysis.md" \
+  --regression-cases "$RUN_DIR/targeted-business-val-test-q106/regression_cases.yaml" \
+  --feature-recipes plugins/heuriboost/skills/heuriboost-rag/templates/feature_recipes.yaml \
+  --out-dir "$RUN_DIR/targeted-business-val-test-q106/llm-discovery" \
+  --n-candidates 5 \
+  --model deepseek-chat \
+  --base-url https://api.deepseek.com \
+  --temperature 0.7 \
+  --auto-ablate \
+  --dataset "$RUN_DIR/targeted-business-val-test-q106/query_doc_examples.csv" \
+  --ablation-n-trials 20 \
+  --ablation-seed 42 \
+  --ablation-promote-threshold 0.01 \
+  --ablation-split validation
+```
+
+Targeted real-LLM result:
+
+| candidate | recommendation | D-B(val) | D-B(test) | D gate |
+|---|---:|---:|---:|---:|
+| `dense_score_rank_hybrid` | promote | +0.1220384732 | +0.6437928129 | 1/1 |
+| `doc_self_information` | promote | +0.0219118754 | +0.2747225665 | 1/1 |
+| `query_doc_cosine_similarity` | promote | +0.3065735964 | +0.0306456201 | 1/1 |
+| `query_doc_entity_ratio` | quarantine | +0.1220384732 | +0.0000000000 | 1/1 |
+| `query_doc_jaccard_similarity` | promote | +0.0565735964 | +0.1437928129 | 1/1 |
+
+Parse ablation results:
+
+```bash
+for f in "$RUN_DIR"/targeted-business-val-test-q106/llm-discovery/auto_ablation/*/ablation/ablation_result.json; do
+  jq -r '[.candidate.name, .recommendation, (.deltas["D-B"].val|tostring), (.deltas["D-B"].test|tostring), (.cells.D.gate.gate_pass|tostring), (.cells.D.gate.gate_total|tostring)] | @tsv' "$f"
+done
+```
+
+Cleanup and final safety checks:
+
+```bash
+find plugins/heuriboost -name '*.pyc' -delete
+find plugins/heuriboost -type d -name '__pycache__' -empty -delete
+find plugins/heuriboost -name '__pycache__' -o -name '*.pyc'
+
+rg -n 'sk-[A-Za-z0-9]{10,}' "$RUN_DIR" docs/REFERENCE.md docs/REFERENCE.zh-CN.md || true
+```
 
 ## CSV contract
 
