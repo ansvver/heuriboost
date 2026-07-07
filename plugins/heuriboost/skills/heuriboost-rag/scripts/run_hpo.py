@@ -19,27 +19,15 @@ from pathlib import Path
 
 from common import (
     ensure_output_dirs,
-    extract_features,
-    group_sizes,
     load_dataset,
-    rank_by_model,
-    relevance_labels,
     require_dependencies,
     split_frame,
     validate_dataset_frame,
 )
 from features import REGISTRY
-from hpo import Budget, HPOEngine, Snapshot
+from hpo import Budget, HPOEngine
 from hpo.optuna_backend import _ndcg10_from_scores
-
-
-def _snapshot(df):
-    return Snapshot(
-        X=extract_features(df),
-        y=relevance_labels(df),
-        raw_labels=[int(v) for v in df["label"].tolist()],
-        groups=group_sizes(df),
-    )
+from ranking_snapshot import snapshot_from_frame
 
 
 def main() -> None:
@@ -64,8 +52,8 @@ def main() -> None:
     valid_df = split_frame(df, args.split)
     test_df = split_frame(df, "test") if "test" in set(df["split"].astype(str)) else None
 
-    train_snap = _snapshot(train_df)
-    valid_snap = _snapshot(valid_df)
+    train_snap = snapshot_from_frame(train_df)
+    valid_snap = snapshot_from_frame(valid_df)
 
     budget = Budget(n_trials=args.n_trials, timeout_sec=args.timeout_sec)
     engine = HPOEngine()
@@ -103,7 +91,7 @@ def main() -> None:
         best_model = xgb.train(
             best_params_full, dtrain, num_boost_round=result.best_iteration + 1
         )
-        test_snap = _snapshot(test_df)
+        test_snap = snapshot_from_frame(test_df)
         dtest = xgb.DMatrix(test_snap.X, label=test_snap.y)
         dtest.set_group(test_snap.groups)
         scores = best_model.predict(dtest)

@@ -37,10 +37,8 @@ import pandas as pd
 from common import (
     ensure_output_dirs,
     extract_features,
-    group_sizes,
     load_dataset,
     rank_by_model,
-    relevance_labels,
     require_dependencies,
     split_frame,
     validate_dataset_frame,
@@ -49,8 +47,9 @@ from eval_reranker import load_regression_cases, run_regression_cases
 from features import REGISTRY
 from features.recipes import extract_all
 from features.registry import ALLOWED_INPUTS
-from hpo import Budget, HPOEngine, Snapshot
+from hpo import Budget, HPOEngine
 from hpo.optuna_backend import _ndcg10_from_scores
+from ranking_snapshot import snapshot_from_frame
 
 # Shipped baseline params (train_reranker.py:210-219). Fixed for cells A/C.
 BASELINE_PARAMS = {
@@ -125,16 +124,6 @@ def _make_extract_plus_df(candidate_fn, candidate_name):
             rows.append(out)
         return pd.DataFrame(rows, columns=list(out.keys()))
     return extract_plus_df
-
-
-def _snapshot(df, extract_df_fn) -> Snapshot:
-    X = extract_df_fn(df)
-    return Snapshot(
-        X=X,
-        y=relevance_labels(df),
-        raw_labels=[int(v) for v in df["label"].tolist()],
-        groups=group_sizes(df),
-    )
 
 
 def _train_cell(params, train_snap, valid_snap):
@@ -227,14 +216,20 @@ def main() -> None:
     # Pre-build snapshots for baseline (12) and candidate (13) feature sets.
     snaps = {
         "baseline": {
-            "train": _snapshot(train_df, extract_baseline),
-            "valid": _snapshot(valid_df, extract_baseline),
-            "test": _snapshot(test_df, extract_baseline) if has_test else None,
+            "train": snapshot_from_frame(train_df, feature_extractor=extract_baseline),
+            "valid": snapshot_from_frame(valid_df, feature_extractor=extract_baseline),
+            "test": (
+                snapshot_from_frame(test_df, feature_extractor=extract_baseline)
+                if has_test else None
+            ),
         },
         "candidate": {
-            "train": _snapshot(train_df, extract_plus_df),
-            "valid": _snapshot(valid_df, extract_plus_df),
-            "test": _snapshot(test_df, extract_plus_df) if has_test else None,
+            "train": snapshot_from_frame(train_df, feature_extractor=extract_plus_df),
+            "valid": snapshot_from_frame(valid_df, feature_extractor=extract_plus_df),
+            "test": (
+                snapshot_from_frame(test_df, feature_extractor=extract_plus_df)
+                if has_test else None
+            ),
         },
     }
 

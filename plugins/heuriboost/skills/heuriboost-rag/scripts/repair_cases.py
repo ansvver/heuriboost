@@ -24,9 +24,7 @@ from common import (
     ensure_output_dirs,
     evaluate_ranked_frame,
     extract_features,
-    group_sizes,
     rank_by_model,
-    relevance_labels,
     require_dependencies,
     sort_for_ranking,
     split_frame,
@@ -34,6 +32,7 @@ from common import (
     write_json,
 )
 from features import REGISTRY
+from ranking_snapshot import snapshot_from_frame
 
 
 DEFAULT_DOMAIN = "default"
@@ -1112,15 +1111,13 @@ def train_model_from_frame(frame, output_dir: str | Path, rounds: int = 40):
     if valid_df.empty:
         raise SystemExit("Validation split is empty.")
 
-    x_train = extract_features(train_df)
-    y_train = relevance_labels(train_df)
-    x_valid = extract_features(valid_df)
-    y_valid = relevance_labels(valid_df)
+    train_snap = snapshot_from_frame(train_df)
+    valid_snap = snapshot_from_frame(valid_df)
 
-    dtrain = xgb.DMatrix(x_train, label=y_train, feature_names=FEATURE_NAMES)
-    dtrain.set_group(group_sizes(train_df))
-    dvalid = xgb.DMatrix(x_valid, label=y_valid, feature_names=FEATURE_NAMES)
-    dvalid.set_group(group_sizes(valid_df))
+    dtrain = xgb.DMatrix(train_snap.X, label=train_snap.y, feature_names=FEATURE_NAMES)
+    dtrain.set_group(train_snap.groups)
+    dvalid = xgb.DMatrix(valid_snap.X, label=valid_snap.y, feature_names=FEATURE_NAMES)
+    dvalid.set_group(valid_snap.groups)
 
     params = {
         "objective": "rank:ndcg",

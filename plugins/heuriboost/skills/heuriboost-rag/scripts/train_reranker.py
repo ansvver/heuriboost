@@ -9,17 +9,15 @@ from pathlib import Path
 from common import (
     FEATURE_NAMES,
     ensure_output_dirs,
-    extract_features,
-    group_sizes,
     load_dataset,
     load_case_sets,
-    relevance_labels,
     require_dependencies,
     split_frame,
     validate_dataset_frame,
     write_json,
 )
 from features import REGISTRY
+from ranking_snapshot import snapshot_from_frame
 
 
 def load_case_denylist(cases_path: str) -> tuple[set[str], set[str]]:
@@ -176,15 +174,13 @@ def main() -> None:
         else:
             print("case_sets loaded but empty; no rows merged into train.")
 
-    x_train = extract_features(train_df)
-    y_train = relevance_labels(train_df)
-    x_valid = extract_features(valid_df)
-    y_valid = relevance_labels(valid_df)
+    train_snap = snapshot_from_frame(train_df)
+    valid_snap = snapshot_from_frame(valid_df)
 
-    dtrain = xgb.DMatrix(x_train, label=y_train, feature_names=FEATURE_NAMES)
-    dtrain.set_group(group_sizes(train_df))
-    dvalid = xgb.DMatrix(x_valid, label=y_valid, feature_names=FEATURE_NAMES)
-    dvalid.set_group(group_sizes(valid_df))
+    dtrain = xgb.DMatrix(train_snap.X, label=train_snap.y, feature_names=FEATURE_NAMES)
+    dtrain.set_group(train_snap.groups)
+    dvalid = xgb.DMatrix(valid_snap.X, label=valid_snap.y, feature_names=FEATURE_NAMES)
+    dvalid.set_group(valid_snap.groups)
 
     params = {
         "objective": "rank:ndcg",

@@ -13,7 +13,8 @@ from pathlib import Path
 from typing import Any
 
 from common import ndcg_at_k
-from hpo.engine import Budget, Snapshot, TrialResult
+from hpo.engine import Budget, TrialResult
+from ranking_snapshot import Snapshot
 
 # Fixed training constants for every HPO trial.
 OBJECTIVE = "rank:ndcg"

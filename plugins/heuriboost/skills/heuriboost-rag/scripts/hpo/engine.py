@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HPOEngine façade + Snapshot/TrialResult/Budget dataclasses (spec §12.5).
+"""HPOEngine façade + TrialResult/Budget dataclasses (spec §12.5).
 
 The engine is a thin façade over a pluggable backend (V0: OptunaBackend in
 `optuna_backend.py`). It takes pre-computed feature snapshots and never touches
@@ -8,24 +8,10 @@ the raw CSV or regression cases — anti-leak by signature.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-
-@dataclass(frozen=True)
-class Snapshot:
-    """A pre-computed feature snapshot for one split.
-
-    `X` is the feature matrix (from REGISTRY.extract), `y` the MAPPED relevance
-    labels (0..4, for xgboost training), `raw_labels` the ORIGINAL labels
-    (-1..3, for nDCG scoring consistent with `evaluate_ranked_frame`/baseline
-    0.853), `groups` the query-group sizes.
-    """
-
-    X: Any
-    y: Any
-    raw_labels: list[int]
-    groups: list[int]
+from ranking_snapshot import Snapshot
 
 
 @dataclass(frozen=True)

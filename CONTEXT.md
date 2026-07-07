@@ -33,6 +33,11 @@ scores/ranks and a relevance label. Rows sharing a `query_id` form one ranking
 group.
 _Avoid_: row, sample, pair (use when group membership doesn't matter)
 
+**Ranking Snapshot**:
+A precomputed representation of Query-Document Examples for one split, carrying
+feature values, XGBoost-mapped labels, original labels, and query-group sizes.
+_Avoid_: training matrix (too narrow), DMatrix (implementation-specific)
+
 **Label scale**:
 Five-level relevance: `3` directly supports, `2` partial, `1` weak, `0`
 irrelevant, `-1` misleading hard negative. Mapped to non-negative ordered
@@ -106,6 +111,9 @@ to grade labels.
 
 - A **Retriever** produces a candidate set; the **Reranker** reorders it.
 - A **Query-Document Example** belongs to exactly one `query_id` group.
+- A **Ranking Snapshot** is built from Query-Document Examples for exactly one
+  split and preserves both mapped labels for training and original labels for
+  evaluation.
 - A **Regression case** references documents by ID and is evaluated against a
   reranked `top_k`; it never enters training.
 - A **Feature Recipe** describes exactly one **Feature** or Candidate Feature.

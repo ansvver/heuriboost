@@ -9,6 +9,7 @@ This package does NOT import `features` — HPO receives feature_set metadata
 as arguments, keeping it decoupled from the registry.
 """
 
-from hpo.engine import Budget, HPOEngine, Snapshot, TrialResult
+from hpo.engine import Budget, HPOEngine, TrialResult
+from ranking_snapshot import Snapshot
 
 __all__ = ["HPOEngine", "TrialResult", "Snapshot", "Budget"]
