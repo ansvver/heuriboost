@@ -1,0 +1,13 @@
+workspace_id: default-rag
+backend: heuriboost_rag.web.runtime:DemoRepairBackend
+promotion_target:
+policy: plugins/heuriboost/skills/heuriboost-rag/templates/reckless_policy.yml
+data_dir: ~/.heuriboost
+backend_options:
+  feature_set_name: demo-rag
+web:
+  host: 127.0.0.1
+  port: 8787
+  default_locale: zh-CN
+  max_concurrent_jobs: 1
+  security_enabled: true

@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heuriboost-rag"
+version = "0.2.0"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "pandas",
+  "pyyaml",
+  "scikit-learn",
+  "xgboost",
+]
+
+[project.optional-dependencies]
+test = []
+web = [
+  "fastapi>=0.115,<1.0",
+  "uvicorn>=0.30,<1.0",
+  "jinja2>=3.1,<4.0",
+  "python-multipart>=0.0.9,<1.0",
+  "openpyxl>=3.1,<4.0",
+  "pyarrow>=16,<20",
+]
+web-test = [
+  "httpx>=0.27,<1.0",
+  "playwright>=1.50,<2.0",
+]
+
+[project.scripts]
+heuriboost-web = "heuriboost_rag.web.__main__:main"
+
+[tool.setuptools]
+packages = [
+  "heuriboost_rag",
+  "heuriboost_rag.adapters",
+  "heuriboost_rag.backends",
+  "heuriboost_rag.importers",
+  "heuriboost_rag.reckless",
+  "heuriboost_rag.web",
+  "heuriboost_rag.web.migrations",
+  "heuriboost_rag.web.jobs",
+  "heuriboost_rag.web.routes",
+  "heuriboost_rag.web.services",
+  "heuriboost_rag.web.stores",
+  "heuriboost_rag.legacy_scripts",
+  "heuriboost_rag.legacy_scripts.features",
+  "heuriboost_rag.legacy_scripts.hpo",
+  "heuriboost_rag.legacy_templates",
+]
+
+[tool.setuptools.package-dir]
+"" = "src"
+"heuriboost_rag.legacy_scripts" = "scripts"
+"heuriboost_rag.legacy_templates" = "templates"
+
+[tool.setuptools.package-data]
+heuriboost_rag = [
+  "reckless/templates/*.html",
+  "reckless/i18n/*.json",
+  "web/migrations/*.sql",
+  "web/static/*",
+  "web/templates/*.html",
+]
+"heuriboost_rag.legacy_templates" = ["*.yaml", "*.yml", "*.csv"]

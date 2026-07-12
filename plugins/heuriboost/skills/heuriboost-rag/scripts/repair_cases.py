@@ -43,6 +43,17 @@ DEFAULT_MIN_GLOBAL_TEST_QUERIES = 10
 DEFAULT_MIN_DOMAIN_TEST_QUERIES = 3
 DEFAULT_MIN_DOCS_PER_QUERY = 2
 
+FIXED_TRAINING_PARAMS = {
+    "objective": "rank:ndcg",
+    "eval_metric": "ndcg@10",
+    "eta": 0.08,
+    "max_depth": 3,
+    "min_child_weight": 0.1,
+    "subsample": 0.9,
+    "colsample_bytree": 0.9,
+    "seed": 42,
+}
+
 LABEL_ALIASES = {
     "3": 3,
     "good": 3,
@@ -1119,16 +1130,7 @@ def train_model_from_frame(frame, output_dir: str | Path, rounds: int = 40):
     dvalid = xgb.DMatrix(valid_snap.X, label=valid_snap.y, feature_names=FEATURE_NAMES)
     dvalid.set_group(valid_snap.groups)
 
-    params = {
-        "objective": "rank:ndcg",
-        "eval_metric": "ndcg@10",
-        "eta": 0.08,
-        "max_depth": 3,
-        "min_child_weight": 0.1,
-        "subsample": 0.9,
-        "colsample_bytree": 0.9,
-        "seed": 42,
-    }
+    params = dict(FIXED_TRAINING_PARAMS)
 
     model = xgb.train(
         params,

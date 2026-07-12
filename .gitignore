@@ -20,6 +20,7 @@ dist/
 .ruff_cache/
 .coverage
 htmlcov/
+.codebase-memory/
 
 # Local OS/editor files
 .DS_Store

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h1>模型版本</h1>
+  <table>
+    <thead><tr><th>当前模型</th><th>说明</th></tr></thead>
+    <tbody><tr><td>{{ current_model or "未发布" }}</td><td>Promotion Receipt 管理的不可变 release pointer</td></tr></tbody>
+  </table>
+</section>
+{% endblock %}

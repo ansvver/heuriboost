@@ -116,6 +116,7 @@ hard-negative signal.
 - Keep rows with the same `query_id` in the same split.
 - Treat regression cases as gates, not training rows.
 - Prefer CSV export over framework-specific adapters in V0.
-- Do not add a formal Python package scaffold in V0.
+- Use `heuriboost_rag` for reusable training, Reckless orchestration, reporting, and promotion APIs.
+- Keep scripts as thin CLI adapters; do not put new reusable business logic only in `scripts/*.py`.
 - Do not describe `failure_analysis.md` as automatic feature discovery. It is a
   deterministic lite analysis, not a feature generation/promotion loop.

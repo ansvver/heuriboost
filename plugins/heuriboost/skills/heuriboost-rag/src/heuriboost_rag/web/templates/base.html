@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>HeuriBoost</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='console.css') }}?v=20260712-1">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <a class="wordmark" href="/">HeuriBoost</a>
+        <nav>
+          <a class="active" href="/">运行工作台</a>
+          <a href="/datasets">数据集</a>
+          <a href="/runs">训练运行</a>
+          <a href="/models">模型版本</a>
+          <a href="/gates">回归门禁</a>
+          <a href="/audit">审批审计</a>
+          <a href="/settings">系统设置</a>
+        </nav>
+      </aside>
+      <main class="workspace">{% block content %}{% endblock %}</main>
+    </div>
+    <script src="{{ url_for('static', path='console.js') }}?v=20260711-3" defer></script>
+  </body>
+</html>

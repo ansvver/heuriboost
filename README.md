@@ -122,6 +122,9 @@ HEURIBOOST_RAG_SKILL_DIR=plugins/heuriboost/skills/heuriboost-rag
 # install runtime deps (on macOS, also: brew install libomp for xgboost)
 python -m pip install -r "$HEURIBOOST_RAG_SKILL_DIR/requirements.txt"
 
+# install the reusable Reckless package for the immutable CLI/API workflow
+python -m pip install -e "$HEURIBOOST_RAG_SKILL_DIR"
+
 # validate -> train -> evaluate the committed FiQA demo
 python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/validate_dataset.py" examples/fiqa/query_doc_examples.csv
 python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/train_reranker.py"  examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output
@@ -181,34 +184,36 @@ agent how to map raw retrieval candidates, accepted/rejected documents, ranks,
 scores, and user feedback into these two files, how to choose full vs weak
 acceptance, and how to validate the result with `compile_cases.py`.
 
-The repair compiler expands those two tables into the internal
-`query_doc_examples.csv`, `regression_cases.yaml`, and `case_sets/` artifacts
-under `output/.heuriboost/compiled/`. Those files are audit/debug output, not
-the user contract.
+The recommended workflow is the immutable Reckless autopilot. It registers
+the two input files by content hash, freezes policy and backend settings in one
+workspace, runs through validation/training/evaluation automatically, and
+stops at `READY_FOR_PROMOTION` or a structured `BLOCKED_*` state.
 
 ```bash
 HEURIBOOST_RAG_SKILL_DIR=plugins/heuriboost/skills/heuriboost-rag
 
-python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/compile_cases.py" \
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/reckless_autopilot.py" run \
   --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
   --production-cases examples/fiqa/repair/production_cases_full.csv \
   --output-dir examples/fiqa/output \
-  --strict
+  --historical-gates /approved/history/gates.jsonl \
+  --anchor-ledger /approved/history/anchor.json \
+  --policy "$HEURIBOOST_RAG_SKILL_DIR/templates/reckless_policy.yml"
 
-python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/repair_reranker.py" \
-  --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
-  --production-cases examples/fiqa/repair/production_cases_full.csv \
-  --output-dir examples/fiqa/output \
-  --reckless
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/reckless_autopilot.py" report \
+  --run-id RUN_ID --output-dir examples/fiqa/output --locale zh-CN
 
-python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/promote_repair.py" \
-  --output-dir examples/fiqa/output
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/reckless_autopilot.py" promote \
+  --run-id RUN_ID --output-dir examples/fiqa/output --approved-by maintainer
 ```
 
-This intentionally lets the model absorb current production cases quickly,
-even if the local fix is close to "overfitting" the observed production problem.
-The first strict repair run initializes its ledger anchor from the base dataset;
-later runs reuse that anchor unless `--reset-anchor` is explicit.
+The first local workspace requires an approved, non-empty historical gate file
+and anchor ledger. It never creates an empty gate set or auto-resets an anchor.
+The workspace stores its immutable configuration in
+`output/.reckless/workspace.json`; subsequent `run` commands must use the same
+policy, training, split, threshold, and pinned-input configuration or use a
+new output directory. Interrupted runs can use `resume --run-id RUN_ID` only
+when their frozen inputs and backend identity still match.
 
 The mode is still strict at acceptance time. Full acceptance is the default: at
 least one good production doc must enter top-k, all bad docs must stay outside
@@ -226,12 +231,36 @@ flowchart LR
     D -- no --> F["Hard fail and iterate"]
 ```
 
+The Pre Promote report is immutable and lives under
+`output/.reckless/runs/<run-id>/reports/`. Promotion revalidates the report,
+decision, candidate artifacts, and current pointer, then publishes an
+immutable release under `output/.reckless/releases/<run-id>/` before atomically
+replacing `output/.reckless/current_model.json`. The default CLI idempotency key
+is stable for a run, so a retry can finish an interrupted Promote safely.
+
+Existing `repair_reranker.py --reckless` and `promote_repair.py` remain as
+compatibility wrappers. They retain their legacy arguments and `10/3` minimum
+test-query defaults, but call the package APIs instead of writing legacy
+ledger/gate/current-pointer files. `--reset-anchor` and
+`--keep-baseline-artifacts` are intentionally rejected: anchor reset and gate
+retirement are separate audited administrative operations. A weak run always
+exits non-zero and cannot Promote.
+
+For an existing mutable `output/.heuriboost/` state, migrate once before any
+new Promote. The migration copies and hashes the old ledger, gates, promoted
+samples, current pointer, and referenced model into an immutable bootstrap
+release without modifying the legacy files:
+
+```bash
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/migrate_reckless_state.py" \
+  --output-dir examples/fiqa/output
+```
+
 The lower-level `train_reranker.py --reckless` / `eval_reranker.py --reckless`
 path still exists for maintainers who already work directly with
 `regression_cases.yaml` and mined `case_sets`.
 
-Reports land in `examples/fiqa/output/reports/` (gitignored). To bring your own
-data, follow the [CSV contract](./docs/REFERENCE.md#csv-contract); for the full
+To bring your own data, follow the [CSV contract](./docs/REFERENCE.md#csv-contract); for the full
 failure-attack loop, ledger, and skill modes see the
 [Reference manual](./docs/REFERENCE.md).
 

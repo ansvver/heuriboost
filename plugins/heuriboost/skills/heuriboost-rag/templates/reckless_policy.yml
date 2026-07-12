@@ -1,0 +1,18 @@
+version: 1
+acceptance_level: full
+input:
+  min_global_test_queries: 50
+  min_domain_test_queries: 10
+  min_docs_per_query: 2
+  require_authoritative_labels: true
+evaluation:
+  require_all_current_cases: true
+  require_all_historical_gates: true
+  require_global_ndcg_improvement: true
+  require_global_mrr_improvement: true
+  allow_touched_domain_regression: false
+promotion:
+  allow_weak: false
+  require_explicit_human_approval: true
+  allow_anchor_reset: false
+  allow_gate_retirement: false

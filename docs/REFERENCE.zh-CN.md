@@ -547,46 +547,54 @@ group 至少有两个 doc。
 | `bad` | hard-negative repair sample，也是压制目标 |
 | `unknown` | 仅作为上下文；不进训练，也不参与验收 |
 
-命令：
+### 不可变 Reckless autopilot
+
+先安装 package，再使用不可变工作流：
 
 ```bash
-python3 plugins/heuriboost/skills/heuriboost-rag/scripts/compile_cases.py \
+python -m pip install -e plugins/heuriboost/skills/heuriboost-rag
+```
+
+用已经批准且非空的历史 gate 与 anchor 创建 workspace。第一次命令会把全部影响模型的
+配置冻结到 `output/.reckless/workspace.json`。
+
+```bash
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/reckless_autopilot.py run \
   --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
   --production-cases examples/fiqa/repair/production_cases_full.csv \
   --output-dir examples/fiqa/output \
-  --strict
+  --historical-gates /approved/history/gates.jsonl \
+  --anchor-ledger /approved/history/anchor.json
 
-python3 plugins/heuriboost/skills/heuriboost-rag/scripts/repair_reranker.py \
-  --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
-  --production-cases examples/fiqa/repair/production_cases_full.csv \
-  --output-dir examples/fiqa/output \
-  --reckless
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/reckless_autopilot.py report \
+  --run-id RUN_ID --output-dir examples/fiqa/output --locale zh-CN
 
-python3 plugins/heuriboost/skills/heuriboost-rag/scripts/promote_repair.py \
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/reckless_autopilot.py promote \
+  --run-id RUN_ID --output-dir examples/fiqa/output --approved-by maintainer
+```
+
+只有 full acceptance、全部当前 case、历史 gates、全局 nDCG/MRR 改善、touched domain
+不退化和产物校验全部通过时，`run` 才会得到 `READY_FOR_PROMOTION`。`weak` 一定是非零、
+不可 Promote 的结果。`resume` 只允许恢复输入和 execution identity 都仍匹配的
+`INTERRUPTED` run。
+
+package 负责 `output/.reckless/runs/`、不可变 Pre Promote 报告、`releases/`、receipt
+和原子 `current_model.json` 指针。Promote 会在服务端重新校验证据，并使用对每个 run 稳定的
+idempotency key。Anchor reset 和 gate retirement 不属于该工作流，必须走独立、可审计的管理
+操作。
+
+现有的 `repair_reranker.py --reckless` 与 `promote_repair.py` 是薄兼容包装器：保留旧参数和
+`10/3` 的最小 query 默认值，但会拒绝 `--reset-anchor` 与
+`--keep-baseline-artifacts`，不会恢复可变写入。若 output 目录含旧
+`.heuriboost/ledger.json`、`gates.jsonl` 或 promoted samples，新的 Promote 前先迁移一次：
+
+```bash
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/migrate_reckless_state.py \
   --output-dir examples/fiqa/output
 ```
 
-生成的审计产物在 `output/.heuriboost/compiled/`：`query_doc_examples.csv`、
-`regression_cases.yaml`、`case_sets/`、`production_cases.json`。这些不是用户
-手写前置条件。
-
-strict repair 行为：
-
-- 缺 anchor 时，从只使用 `base_dataset` 的基线自动初始化；
-- 已有 anchor 会复用，除非显式 `--reset-anchor`；
-- 只向用户暴露一个候选模型，写到 `output/models/`；
-- 当前 production cases 会进入 repair 训练；
-- base test 仍是指标级回归验收集，不会被 production cases 静默扩充；
-- 历史 gates 是自包含 case snapshot，不是 base-test 行。
-
-默认 full 验收要求：至少一个 good doc 进入 top-k，所有 bad doc 离开 top-k，
-历史 gates 全通过，全局 base-test `nDCG@10` 与 `MRR@10` 都超过 anchor，且 touched
-domain 指标不低于 domain anchor。`--acceptance-level weak` 允许 bad-only 压制
-检查，但永远不能 promote。
-
-`promote_repair.py` 会拒绝失败或 weak run。成功 promote 会刷新 repair anchor，
-把 full production cases 冻结为历史 gates，追加 promoted repair samples，并写入
-`output/.heuriboost/current_model.json`。它不会修改用户输入 CSV，也不会线上部署。
+迁移对旧文件只读：它创建一个经过哈希校验的 bootstrap release；同一状态的重复迁移幂等，
+旧状态发生变化则会拒绝。
 
 ## 闭环：case_sets 挖掘
 

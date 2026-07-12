@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h1>审批审计</h1>
+  <table>
+    <thead><tr><th>ID</th><th>事件</th><th>时间</th><th>Payload</th></tr></thead>
+    <tbody>
+    {% for event in events %}
+      <tr><td>{{ event.event_id }}</td><td>{{ event.event_type }}</td><td>{{ event.occurred_at }}</td><td>{{ event.payload }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h1>回归门禁</h1>
+  <table>
+    <thead><tr><th>Policy Hash</th><th>版本</th><th>Promotion 等级</th></tr></thead>
+    <tbody><tr><td>{{ policy.content_hash }}</td><td>{{ policy.version }}</td><td>{{ policy.acceptance_level }}</td></tr></tbody>
+  </table>
+</section>
+{% endblock %}

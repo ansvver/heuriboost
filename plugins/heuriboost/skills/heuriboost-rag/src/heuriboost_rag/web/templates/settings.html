@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h1>系统设置</h1>
+  <table>
+    <tbody>
+      <tr><th>Workspace</th><td>{{ config.workspace_id }}</td></tr>
+      <tr><th>Backend</th><td>{{ backend_name }}</td></tr>
+      <tr><th>Data Dir</th><td>{{ config.data_dir }}</td></tr>
+      <tr><th>Host</th><td>{{ config.host }}:{{ config.port }}</td></tr>
+    </tbody>
+  </table>
+</section>
+{% endblock %}

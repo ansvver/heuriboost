@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HeuriBoost Pre Promote Report</title>
+  <style>
+    :root {
+      color: #111111;
+      background: #ffffff;
+      font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
+      font-variant-numeric: tabular-nums;
+      --blue: #002fa7;
+      --green: #167c3a;
+      --amber: #9a5b00;
+      --red: #b42318;
+      --ink-soft: #4b5563;
+      --paper: #ffffff;
+      --wash: #f7f7f8;
+      --line: #111111;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--wash); }
+    button, summary { font: inherit; }
+    button { cursor: pointer; }
+    .page { width: min(1180px, calc(100% - 32px)); margin: 0 auto; background: var(--paper); border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+    .masthead { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; padding: 28px 32px 20px; border-bottom: 1px solid var(--line); }
+    .brand { margin: 0 0 8px; font-size: 12px; font-weight: 700; }
+    h1 { margin: 0; font-size: 34px; line-height: 1.05; font-weight: 700; letter-spacing: 0; }
+    h2, h3, p { margin-top: 0; }
+    .locale-switch { display: flex; align-self: start; border: 1px solid var(--line); }
+    .locale-switch button { min-width: 76px; min-height: 32px; padding: 6px 10px; border: 0; border-left: 1px solid var(--line); background: var(--paper); color: var(--line); }
+    .locale-switch button:first-child { border-left: 0; }
+    .locale-switch button[aria-pressed="true"] { background: var(--blue); color: #ffffff; }
+    .review-hero { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr); border-bottom: 1px solid var(--line); }
+    .hero-main { padding: 30px 32px; border-right: 1px solid var(--line); }
+    .hero-facts { margin: 0; padding: 24px 24px 18px; }
+    .eyebrow { margin: 0 0 10px; font-size: 12px; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: .08em; }
+    .headline { margin: 0; font-size: 42px; line-height: 1; font-weight: 700; color: var(--blue); }
+    .reason { margin: 18px 0 0; max-width: 760px; font-size: 17px; line-height: 1.55; color: #202124; }
+    .fact-row, .data-kv div { padding: 9px 0; border-top: 1px solid var(--line); }
+    .fact-row:first-child, .data-kv div:first-child { border-top: 0; padding-top: 0; }
+    dt { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--ink-soft); }
+    dd { margin: 4px 0 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; overflow-wrap: anywhere; }
+    .review-section { padding: 28px 32px; border-bottom: 1px solid var(--line); }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    .section-head h2 { margin: 0; font-size: 24px; line-height: 1.15; }
+    .section-note { margin: 6px 0 0; color: var(--ink-soft); line-height: 1.5; }
+    .card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .card-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card { border: 1px solid var(--line); background: #ffffff; padding: 16px; min-height: 120px; }
+    .card h3 { margin: 0 0 8px; font-size: 16px; }
+    .card p { margin: 8px 0 0; color: #202124; line-height: 1.45; }
+    .muted { color: var(--ink-soft); }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .chip { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px; border: 1px solid var(--line); background: var(--wash); font-size: 12px; }
+    .chip[data-feature-tooltip] { cursor: help; text-decoration: underline dotted var(--ink-soft); text-underline-offset: 3px; }
+    .split-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); margin-top: 16px; }
+    .split-grid div { padding: 12px; border-left: 1px solid var(--line); }
+    .split-grid div:first-child { border-left: 0; }
+    .big-number { display: block; margin-top: 4px; font-size: 24px; font-weight: 700; }
+    .timeline { display: block; overflow: hidden; border: 1px solid var(--line); background: #ffffff; }
+    .timeline-header, .timeline-step { display: grid; grid-template-columns: minmax(220px, 0.72fr) minmax(360px, 1fr) 118px; gap: 18px; align-items: center; }
+    .timeline-header { padding: 10px 16px; border-bottom: 1px solid var(--line); background: #f0f3fa; color: var(--ink-soft); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .timeline-step { padding: 14px 16px; border-top: 1px solid var(--line); background: #ffffff; }
+    .timeline-step:first-of-type { border-top: 0; }
+    .timeline-step[data-status="used"], .timeline-step[data-status="attempted"] { background: #f4f7ff; }
+    .timeline-step[data-status="blocked"] { background: #fff7f6; }
+    .timeline-label { min-width: 0; }
+    .timeline-title { margin: 0; font-weight: 700; font-size: 15px; line-height: 1.35; }
+    .timeline-summary { margin: 6px 0 0; color: var(--ink-soft); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+    .timeline-track { position: relative; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; height: 34px; padding: 6px; border: 1px solid #aab0bd; background: repeating-linear-gradient(90deg, #f8fafc 0, #f8fafc calc(10% - 1px), #d9dee8 calc(10% - 1px), #d9dee8 10%); }
+    .timeline-fill { grid-column: var(--start) / span var(--span); min-width: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); background: var(--green); color: #ffffff; font-size: 11px; font-weight: 700; line-height: 1; }
+    .timeline-step[data-status="blocked"] .timeline-fill { background: var(--red); }
+    .timeline-step[data-status="used"] .timeline-fill, .timeline-step[data-status="attempted"] .timeline-fill { background: var(--blue); }
+    .timeline-step[data-status="skipped"] .timeline-fill, .timeline-step[data-status="pending"] .timeline-fill { background: #9ca3af; }
+    .timeline-result { justify-self: end; }
+    .status-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 86px; min-height: 30px; padding: 4px 9px; border: 1px solid var(--line); background: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .status-pill[data-status="passed"], .status-pill[data-status="completed"], .status-pill[data-status="ready"] { color: var(--green); }
+    .status-pill[data-status="blocked"] { color: var(--red); }
+    .status-pill[data-status="used"], .status-pill[data-status="attempted"] { color: var(--blue); }
+    .metric-table { width: 100%; border-collapse: collapse; border: 1px solid var(--line); }
+    .metric-table th, .metric-table td { padding: 10px 12px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .metric-table tr:first-child th, .metric-table tr:first-child td { border-top: 0; }
+    .metric-table th { width: 32%; font-size: 12px; color: var(--ink-soft); text-transform: uppercase; }
+    .summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+    .summary-list { min-height: 108px; padding: 18px 32px 22px; border-right: 1px solid var(--line); }
+    .summary-list:last-child { border-right: 0; }
+    .summary-list h2 { margin: 0 0 12px; font-size: 13px; }
+    .summary-list ul { margin: 0; padding-left: 18px; }
+    .summary-list li { margin: 5px 0; overflow-wrap: anywhere; }
+    .stages { border-bottom: 1px solid var(--line); }
+    details { border-top: 1px solid var(--line); }
+    details:first-child { border-top: 0; }
+    summary { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 14px 32px; list-style: none; font-size: 15px; font-weight: 700; }
+    summary::-webkit-details-marker { display: none; }
+    summary::before { content: "+"; color: var(--blue); font-size: 20px; line-height: 16px; }
+    details[open] summary::before { content: "-"; }
+    .detail-content { padding: 0 32px 24px 78px; }
+    pre { margin: 0; padding: 14px; overflow: auto; border: 1px solid var(--line); background: var(--wash); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .footer { display: flex; justify-content: space-between; gap: 18px; padding: 16px 32px; font-size: 11px; }
+    .footer span { overflow-wrap: anywhere; }
+    @media (max-width: 820px) {
+      .page { width: 100%; border: 0; }
+      .masthead, .review-hero { display: block; }
+      .masthead, .hero-main, .hero-facts, .review-section, .summary-list { padding-left: 20px; padding-right: 20px; }
+      .locale-switch { margin-top: 20px; width: fit-content; }
+      .hero-main { border-right: 0; border-bottom: 1px solid var(--line); }
+      .card-grid, .card-grid.three, .summary-grid { display: block; }
+      .card { margin-bottom: 12px; }
+      .timeline { overflow: visible; }
+      .timeline-header { display: none; }
+      .timeline-step { display: block; padding: 14px; }
+      .timeline-step + .timeline-step { border-top: 1px solid var(--line); }
+      .timeline-track { margin: 10px 0; min-width: 0; }
+      .timeline-result { justify-self: start; }
+      .split-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .split-grid div:nth-child(odd) { border-left: 0; }
+      .split-grid div:nth-child(n+3) { border-top: 1px solid var(--line); }
+      .summary-list { border-right: 0; border-bottom: 1px solid var(--line); }
+      .summary-list:last-child { border-bottom: 0; }
+      summary { padding-left: 20px; padding-right: 20px; }
+      .detail-content { padding: 0 20px 20px; }
+      .headline { font-size: 34px; }
+      .footer { display: block; padding-left: 20px; padding-right: 20px; }
+      .footer span { display: block; margin-top: 6px; }
+    }
+    @media print {
+      body { background: #ffffff; }
+      .page { width: 100%; border: 0; }
+      .locale-switch { display: none; }
+      .timeline { overflow: visible; }
+      details { break-inside: avoid; }
+      details:not([open]) .detail-content { display: block; }
+      details:not([open]) summary::before { content: "-"; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <div>
+        <p class="brand">HeuriBoost</p>
+        <h1 id="page-title"></h1>
+      </div>
+      <div class="locale-switch" role="group" aria-label="Language">
+        <button type="button" data-locale="zh-CN"></button>
+        <button type="button" data-locale="en"></button>
+      </div>
+    </header>
+
+    <section class="review-hero" aria-labelledby="operator-headline">
+      <div class="hero-main">
+        <p class="eyebrow" id="conclusion-label">结论</p>
+        <h2 class="headline" id="operator-headline"></h2>
+        <p class="reason" id="operator-reason"></p>
+      </div>
+      <dl class="hero-facts" id="hero-facts"></dl>
+    </section>
+
+    <section class="review-section" aria-labelledby="data-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow" id="used-data-label">用了什么数据</p>
+          <h2 id="data-title">数据输入</h2>
+          <p class="section-note" id="data-summary"></p>
+        </div>
+      </div>
+      <div class="card-grid" id="data-cards"></div>
+      <div class="split-grid" id="split-grid"></div>
+    </section>
+
+    <section class="review-section" aria-labelledby="process-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow" id="process-label">走了什么流程</p>
+          <h2 id="process-title">甘特图</h2>
+        </div>
+      </div>
+      <div class="timeline" id="process-timeline" aria-label="甘特图"></div>
+    </section>
+
+    <section class="review-section" aria-labelledby="llm-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow" id="llm-label">LLM 自动挖掘了什么</p>
+          <h2 id="llm-title">模型特征</h2>
+        </div>
+      </div>
+      <div class="card-grid" id="llm-cards"></div>
+      <div class="card-grid three" id="feature-groups"></div>
+    </section>
+
+    <section class="review-section" aria-labelledby="metrics-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow" id="metrics-label">指标变化</p>
+          <h2 id="metrics-title">训练与门禁结果</h2>
+        </div>
+      </div>
+      <div class="card-grid three" id="metric-cards"></div>
+      <table class="metric-table" id="metric-comparison"></table>
+      <div class="card-grid" id="training-cards"></div>
+    </section>
+
+    <section class="review-section" aria-labelledby="deposits-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow" id="deposits-label">沉淀产物</p>
+          <h2 id="deposits-title">数据、模型和报告</h2>
+        </div>
+      </div>
+      <div class="card-grid" id="deposit-cards"></div>
+    </section>
+
+    <section class="summary-grid">
+      <div class="summary-list"><h2 id="blockers-title"></h2><ul id="blockers"></ul></div>
+      <div class="summary-list"><h2 id="warnings-title"></h2><ul id="warnings"></ul></div>
+    </section>
+
+    <section class="review-section" aria-labelledby="audit-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow" id="audit-label">审计附录</p>
+          <h2 id="audit-title">原始证据</h2>
+          <p class="section-note">以下内容保留机器可读 JSON，便于审计、复现和排查。</p>
+        </div>
+      </div>
+    </section>
+    <section class="stages" id="stages"></section>
+
+    <footer class="footer"><span id="footer-run"></span><span id="footer-hash"></span></footer>
+  </main>
+  <script id="heuriboost-pre-promote-data" type="application/json">__REPORT_JSON__</script>
+  <script id="heuriboost-pre-promote-i18n" type="application/json">__I18N_JSON__</script>
+  <script>
+    (() => {
+      const data = JSON.parse(document.getElementById("heuriboost-pre-promote-data").textContent);
+      const translations = JSON.parse(document.getElementById("heuriboost-pre-promote-i18n").textContent);
+      const initialLocale = __INITIAL_LOCALE__;
+      const stageKeys = [
+        ["operator_summary", "conclusion"],
+        ["data_overview", "used_data"],
+        ["process_timeline", "process"],
+        ["metric_summary", "metrics_change"],
+        ["features", "features"],
+        ["explainability", "explainability"],
+        ["data_lineage", "data_lineage"],
+        ["validation", "validation"],
+        ["compilation", "compilation"],
+        ["training", "training"],
+        ["evaluation", "evaluation"],
+        ["gate_checks", "gate_checks"],
+        ["artifacts", "artifacts"],
+        ["deposits", "deposits"],
+        ["reproducibility", "reproducibility"]
+      ];
+      const element = (tag, text) => {
+        const node = document.createElement(tag);
+        if (text !== undefined) node.textContent = text;
+        return node;
+      };
+      const byId = id => document.getElementById(id);
+      const stringify = value => JSON.stringify(value, null, 2);
+      const valueText = (value, none) => {
+        if (value === undefined || value === null || value === "") return none;
+        if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+        if (typeof value === "object") return stringify(value);
+        return String(value);
+      };
+      const appendList = (target, values, none) => {
+        target.replaceChildren();
+        const entries = Array.isArray(values) && values.length ? values : [none];
+        entries.forEach(value => target.appendChild(element("li", typeof value === "string" ? value : stringify(value))));
+      };
+      const buildDetails = (title, value, open = false) => {
+        const details = element("details");
+        details.open = open;
+        const summary = element("summary", title);
+        const content = element("div");
+        content.className = "detail-content";
+        content.appendChild(element("pre", stringify(value)));
+        details.append(summary, content);
+        return details;
+      };
+      const factRows = (target, rows, none) => {
+        target.replaceChildren();
+        rows.forEach(([label, value]) => {
+          const row = element("div");
+          row.className = "fact-row";
+          row.append(element("dt", label), element("dd", valueText(value, none)));
+          target.appendChild(row);
+        });
+      };
+      const chips = (values, featureDetails = {}) => {
+        const wrap = element("div");
+        wrap.className = "chips";
+        (Array.isArray(values) ? values : []).slice(0, 12).forEach(value => {
+          const chip = element("span", value);
+          chip.className = "chip";
+          const detail = featureDetails[String(value)];
+          if (detail && detail.description) {
+            const source = detail.source ? `${detail.source}: ` : "";
+            const group = detail.group ? `（${detail.group}）` : "";
+            const tooltip = `${source}${detail.description}${group}`;
+            chip.title = tooltip;
+            chip.dataset.featureTooltip = tooltip;
+          }
+          wrap.appendChild(chip);
+        });
+        return wrap;
+      };
+      const card = (title, body, meta) => {
+        const node = element("article");
+        node.className = "card";
+        node.appendChild(element("h3", title));
+        if (body) node.appendChild(element("p", body));
+        if (meta) node.appendChild(meta);
+        return node;
+      };
+      const statusText = (status, locale) => {
+        const zh = {
+          completed: "已完成",
+          passed: "已通过",
+          blocked: "阻断",
+          used: "已使用",
+          attempted: "已尝试",
+          skipped: "跳过",
+          ready: "待批准",
+          pending: "待处理",
+          checked: "已检查"
+        };
+        const en = {
+          completed: "Completed",
+          passed: "Passed",
+          blocked: "Blocked",
+          used: "Used",
+          attempted: "Attempted",
+          skipped: "Skipped",
+          ready: "Ready",
+          pending: "Pending",
+          checked: "Checked"
+        };
+        const table = locale === "zh-CN" ? zh : en;
+        return table[status] || status || "";
+      };
+      const metricCard = (title, value, none) => card(title, valueText(value, none));
+      const renderData = labels => {
+        const overview = data.data_overview || {};
+        byId("data-summary").textContent = overview.summary || "";
+        const cards = byId("data-cards");
+        cards.replaceChildren();
+        (overview.datasets || []).forEach(dataset => {
+          const meta = element("div");
+          meta.className = "data-kv";
+          factRows(meta, [
+            ["Dataset", dataset.dataset_id],
+            ["Rows", dataset.rows],
+            ["Fields", dataset.field_count],
+            ["Hash", dataset.content_hash]
+          ], labels.none);
+          if (dataset.fields && dataset.fields.length) meta.appendChild(chips(dataset.fields));
+          cards.appendChild(card(dataset.title || dataset.role, dataset.purpose, meta));
+        });
+        const split = overview.split || {};
+        const splitGrid = byId("split-grid");
+        splitGrid.replaceChildren();
+        const hasExplicitSplit = split.train_rows != null || split.validation_rows != null || split.test_rows != null;
+        const splitRows = hasExplicitSplit ? [
+          ["Train", split.train_rows],
+          ["Validation", split.validation_rows],
+          ["Test", split.test_rows],
+          ["Query groups", split.query_groups]
+        ] : [
+          ["Compiled rows", split.compiled_rows],
+          ["Base rows", split.base_rows],
+          ["Production cases", split.production_case_rows],
+          ["Query groups", split.query_groups]
+        ];
+        splitRows.forEach(([label, value]) => {
+          const item = element("div");
+          item.append(element("span", label), element("strong", valueText(value, labels.none)));
+          item.lastChild.className = "big-number";
+          splitGrid.appendChild(item);
+        });
+      };
+      const renderTimeline = (labels, locale) => {
+        const timeline = byId("process-timeline");
+        timeline.replaceChildren();
+        const header = element("div");
+        header.className = "timeline-header";
+        header.append(element("span", locale === "zh-CN" ? "阶段说明" : "Stage"), element("span", locale === "zh-CN" ? "流程位置" : "Position"), element("span", locale === "zh-CN" ? "结果" : "Result"));
+        timeline.appendChild(header);
+        ((data.process_timeline || {}).steps || []).forEach((step, index) => {
+          const node = element("article");
+          node.className = "timeline-step";
+          node.dataset.phaseId = step.id;
+          node.dataset.status = step.status;
+          const label = element("div");
+          label.className = "timeline-label";
+          label.appendChild(element("p", step.title));
+          label.firstChild.className = "timeline-title";
+          label.appendChild(element("p", step.summary || ""));
+          label.lastChild.className = "timeline-summary";
+          const track = element("div");
+          track.className = "timeline-track";
+          track.setAttribute("aria-hidden", "true");
+          const fill = element("div", String(index + 1));
+          fill.className = "timeline-fill";
+          fill.style.setProperty("--start", String((step.offset || index) + 1));
+          fill.style.setProperty("--span", String(step.duration || 1));
+          track.appendChild(fill);
+          const result = element("div");
+          result.className = "timeline-result";
+          const pill = element("span", statusText(step.status, locale) || labels.none);
+          pill.className = "status-pill";
+          pill.dataset.status = step.status;
+          result.appendChild(pill);
+          node.append(label, track, result);
+          timeline.appendChild(node);
+        });
+      };
+      const renderLlm = labels => {
+        const cards = byId("llm-cards");
+        cards.replaceChildren();
+        const synthesized = (data.features || {}).synthesized_features || [];
+        if (!synthesized.length) {
+          cards.appendChild(card(labels.llm_synthesis, "本次没有新增 LLM 特征。"));
+        } else {
+          synthesized.forEach(feature => {
+            const meta = element("div");
+            meta.className = "data-kv";
+            factRows(meta, [
+              ["Feature", feature.name],
+              ["Kind", feature.kind],
+              ["Entries", feature.entry_count],
+              ["Positive/Negative/Neutral", [feature.positive_entries, feature.negative_entries, feature.neutral_entries].join(" / ")]
+            ], labels.none);
+            cards.appendChild(card(feature.name, feature.description, meta));
+          });
+        }
+        const groups = byId("feature-groups");
+        groups.replaceChildren();
+        const featureDetails = {};
+        ((data.features || {}).feature_details || []).forEach(feature => {
+          if (feature && feature.name) featureDetails[String(feature.name)] = feature;
+        });
+        ((data.explainability || {}).feature_groups || []).forEach(group => {
+          groups.appendChild(card(group.group, `${valueText(group.count, labels.none)} features`, chips(group.features, featureDetails)));
+        });
+      };
+      const renderMetrics = labels => {
+        const summary = data.metric_summary || {};
+        const metricCards = byId("metric-cards");
+        metricCards.replaceChildren();
+        const metrics = summary.global_metrics || {};
+        ["ndcg@10", "mrr@10"].forEach(name => metricCards.appendChild(metricCard(name.toUpperCase(), metrics[name], labels.none)));
+        const gates = summary.gate_summary || {};
+        metricCards.appendChild(metricCard(labels.gate_checks, `${valueText(gates.passed, labels.none)} / ${valueText(gates.total, labels.none)}`, labels.none));
+        const table = byId("metric-comparison");
+        table.replaceChildren();
+        const comparisons = summary.comparison || [];
+        if (comparisons.length) {
+          comparisons.forEach(item => {
+            const row = element("tr");
+            row.append(
+              element("th", item.metric),
+              element("td", `before ${valueText(item.before, labels.none)} → after ${valueText(item.after, labels.none)} (Δ ${valueText(item.delta, labels.none)})`)
+            );
+            table.appendChild(row);
+          });
+        } else {
+          const row = element("tr");
+          row.append(element("th", labels.metrics), element("td", "没有首轮/重试对比数据；展示最终指标。"));
+          table.appendChild(row);
+        }
+        const training = summary.training || {};
+        const trainingCards = byId("training-cards");
+        trainingCards.replaceChildren();
+        trainingCards.appendChild(card(labels.training, "本次训练参数", chips([
+          `objective=${valueText(training.objective, labels.none)}`,
+          `eval_metric=${valueText(training.eval_metric, labels.none)}`,
+          `rounds=${valueText(training.rounds, labels.none)}`,
+          `seed=${valueText(training.seed, labels.none)}`
+        ])));
+        trainingCards.appendChild(card(labels.data_inputs, "训练/验证/测试样本规模", chips([
+          `train=${valueText(training.train_rows, labels.none)}`,
+          `validation=${valueText(training.validation_rows, labels.none)}`,
+          `test=${valueText(training.test_rows, labels.none)}`
+        ])));
+      };
+      const renderDeposits = labels => {
+        const target = byId("deposit-cards");
+        target.replaceChildren();
+        (data.deposits || []).forEach(deposit => {
+          const meta = element("div");
+          meta.className = "data-kv";
+          factRows(meta, [
+            ["Kind", deposit.kind],
+            ["Artifact", deposit.artifact_type],
+            ["Hash", deposit.content_hash],
+            ["Bytes", deposit.size_bytes]
+          ], labels.none);
+          target.appendChild(card(deposit.title || deposit.kind, deposit.summary, meta));
+        });
+      };
+      const render = locale => {
+        const labels = translations[locale];
+        document.documentElement.lang = locale;
+        document.title = labels.title;
+        byId("page-title").textContent = labels.title;
+        byId("conclusion-label").textContent = labels.conclusion;
+        byId("used-data-label").textContent = labels.used_data;
+        byId("data-title").textContent = labels.data_inputs;
+        byId("process-label").textContent = labels.process;
+        byId("process-title").textContent = labels.gantt;
+        byId("llm-label").textContent = labels.llm_synthesis;
+        byId("llm-title").textContent = labels.features;
+        byId("metrics-label").textContent = labels.metrics_change;
+        byId("metrics-title").textContent = labels.training;
+        byId("deposits-label").textContent = labels.deposits;
+        byId("deposits-title").textContent = labels.artifacts;
+        byId("audit-label").textContent = labels.audit_appendix;
+        byId("audit-title").textContent = labels.raw_evidence;
+
+        const summary = data.operator_summary || {};
+        byId("operator-headline").textContent = summary.headline || (data.decision.promotion_eligible ? labels.ready : labels.blocked);
+        byId("operator-reason").textContent = summary.reason || "";
+        factRows(byId("hero-facts"), [
+          [labels.run, data.run.run_id],
+          [labels.status, data.run.state],
+          ["Model", summary.model_hash || ((data.training.model_ref || {}).content_hash)],
+          ["Policy", summary.policy_hash || data.reproducibility.policy_hash],
+          ["Decision", summary.decision_hash || data.reproducibility.decision_hash]
+        ], labels.none);
+
+        byId("blockers-title").textContent = labels.blockers;
+        byId("warnings-title").textContent = labels.warnings;
+        appendList(byId("blockers"), data.decision.blockers, labels.none);
+        appendList(byId("warnings"), data.warnings, labels.none);
+        renderData(labels);
+        renderTimeline(labels, locale);
+        renderLlm(labels);
+        renderMetrics(labels);
+        renderDeposits(labels);
+
+        const stages = byId("stages");
+        stages.replaceChildren();
+        stageKeys
+          .filter(([key]) => Object.prototype.hasOwnProperty.call(data, key))
+          .forEach(([key, label]) => stages.appendChild(
+            buildDetails(labels[label] || label, data[key], key === "features" || key === "explainability")
+          ));
+        byId("footer-run").textContent = data.run.run_id;
+        byId("footer-hash").textContent = data.reproducibility.input_hash || "";
+        document.querySelectorAll("[data-locale]").forEach(button => {
+          const selected = button.dataset.locale === locale;
+          button.textContent = button.dataset.locale === "zh-CN" ? labels.language_zh : labels.language_en;
+          button.setAttribute("aria-pressed", String(selected));
+        });
+      };
+      document.querySelectorAll("[data-locale]").forEach(button => button.addEventListener("click", () => render(button.dataset.locale)));
+      render(initialLocale);
+    })();
+  </script>
+</body>
+</html>

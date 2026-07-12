@@ -111,6 +111,9 @@ HEURIBOOST_RAG_SKILL_DIR=plugins/heuriboost/skills/heuriboost-rag
 # 安装运行时依赖（macOS 还需：brew install libomp 供 xgboost 用）
 python -m pip install -r "$HEURIBOOST_RAG_SKILL_DIR/requirements.txt"
 
+# 安装不可变 Reckless CLI/API 所需的可复用 package
+python -m pip install -e "$HEURIBOOST_RAG_SKILL_DIR"
+
 # 校验 -> 训练 -> 评估 提交进仓库的 FiQA demo
 python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/validate_dataset.py" examples/fiqa/query_doc_examples.csv
 python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/train_reranker.py"  examples/fiqa/query_doc_examples.csv --output-dir examples/fiqa/output
@@ -167,32 +170,33 @@ python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/eval_reranker.py" examples/fiqa/query
 accepted/rejected 文档、rank、score、用户反馈映射成这两张表，如何判断 full /
 weak 验收，以及如何用 `compile_cases.py` 校验结果。
 
-编译器会把这两张表展开成内部的 `query_doc_examples.csv`、
-`regression_cases.yaml` 和 `case_sets/`，写到
-`output/.heuriboost/compiled/`。这些是审计/调试产物，不是用户要手写的输入。
+推荐使用不可变 Reckless autopilot：它按内容哈希登记两份输入，在一个 workspace 中
+冻结 policy 与 backend 配置，自动执行校验、训练和评测，最终停在
+`READY_FOR_PROMOTION` 或结构化的 `BLOCKED_*` 状态。
 
 ```bash
 HEURIBOOST_RAG_SKILL_DIR=plugins/heuriboost/skills/heuriboost-rag
 
-python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/compile_cases.py" \
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/reckless_autopilot.py" run \
   --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
   --production-cases examples/fiqa/repair/production_cases_full.csv \
   --output-dir examples/fiqa/output \
-  --strict
+  --historical-gates /approved/history/gates.jsonl \
+  --anchor-ledger /approved/history/anchor.json \
+  --policy "$HEURIBOOST_RAG_SKILL_DIR/templates/reckless_policy.yml"
 
-python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/repair_reranker.py" \
-  --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
-  --production-cases examples/fiqa/repair/production_cases_full.csv \
-  --output-dir examples/fiqa/output \
-  --reckless
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/reckless_autopilot.py" report \
+  --run-id RUN_ID --output-dir examples/fiqa/output --locale zh-CN
 
-python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/promote_repair.py" \
-  --output-dir examples/fiqa/output
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/reckless_autopilot.py" promote \
+  --run-id RUN_ID --output-dir examples/fiqa/output --approved-by maintainer
 ```
 
-这个模式允许模型快速吸收当前生产 case，必要时可以有意识地“过拟合”已经观察到的
-生产问题。第一次严格 repair 会从 `base_dataset` 自动初始化 ledger anchor；后续
-运行复用已有 anchor，除非显式传 `--reset-anchor`。
+首次创建本地 workspace 时，必须提供已经批准且非空的历史 gate 文件与 anchor ledger。
+系统不会创建空 gate，也不会自动重置 anchor。不可变配置写在
+`output/.reckless/workspace.json`；之后的 `run` 必须使用相同的 policy、训练、切分、
+阈值和 pinned input 配置，否则应使用新的 output 目录。只有冻结输入和 backend identity
+仍一致时，`resume --run-id RUN_ID` 才能恢复中断 run。
 
 但鲁莽不等于放松验收。默认 full 验收要求：至少一个 good 生产文档进入 top-k，
 所有 bad 文档离开 top-k，历史 gates 全通过，全局 test 的 `nDCG@10` 和 `MRR@10`
@@ -208,11 +212,31 @@ flowchart LR
     D -- 否 --> F["硬失败并继续迭代"]
 ```
 
+Pre Promote 报告不可修改，位于
+`output/.reckless/runs/<run-id>/reports/`。Promote 会重新校验报告、decision、候选
+产物和当前指针；先发布 `output/.reckless/releases/<run-id>/` 下的不可变 release，最后
+原子替换 `output/.reckless/current_model.json`。默认 CLI idempotency key 对同一 run 稳定，
+因此中断后的 Promote 可以安全重试。
+
+已有的 `repair_reranker.py --reckless` 和 `promote_repair.py` 保留为兼容包装器：它们保留
+旧参数和 `10/3` 的最小 test-query 默认值，但只调用 package API，不再直接写旧 ledger、
+gate 或 current pointer。`--reset-anchor` 与 `--keep-baseline-artifacts` 会明确拒绝；
+Anchor reset 与 gate retirement 是独立、可审计的管理操作。weak run 永远非零退出，也不能
+Promote。
+
+若已有可变的 `output/.heuriboost/` 状态，任何新的 Promote 前先执行一次迁移。迁移会把旧
+ledger、gates、promoted samples、current pointer 及其引用模型复制并哈希到不可变 bootstrap
+release，不会改写旧文件：
+
+```bash
+python3 "$HEURIBOOST_RAG_SKILL_DIR/scripts/migrate_reckless_state.py" \
+  --output-dir examples/fiqa/output
+```
+
 底层 `train_reranker.py --reckless` / `eval_reranker.py --reckless` 仍保留，
 给已经直接维护 `regression_cases.yaml` 与挖掘 `case_sets` 的维护者使用。
 
-报告写入 `examples/fiqa/output/reports/`（被 git 忽略）。要用自己的数据，参考
-[CSV 契约](./docs/REFERENCE.zh-CN.md#csv-契约)；完整的失败攻击循环、ledger 和
+要用自己的数据，参考 [CSV 契约](./docs/REFERENCE.zh-CN.md#csv-契约)；完整的失败攻击循环、ledger 和
 skill 模式见[参考手册](./docs/REFERENCE.zh-CN.md)。
 
 ## 实现 Checklist

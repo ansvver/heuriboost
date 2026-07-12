@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-heading">
+  <div><h1>运行工作台</h1><p>新建 Reckless 修复</p></div>
+</header>
+<section class="workflow-grid" aria-label="新建 Reckless 修复">
+  <form id="upload-form" class="panel" enctype="multipart/form-data">
+    <h2>数据接入</h2>
+    <label for="dataset-role">数据角色</label>
+    <select id="dataset-role" name="role">
+      <option value="production_cases">生产 case</option>
+      <option value="base">基础数据集</option>
+    </select>
+    <label for="source-file">CSV、JSONL 或 XLSX</label>
+    <input id="source-file" name="file" type="file" accept=".csv,.jsonl,.ndjson,.xlsx" required>
+    <div id="preflight" class="result" aria-live="polite"></div>
+    <button type="submit">上传并预检</button>
+  </form>
+  <section class="panel">
+    <h2>已登记基础数据集</h2>
+    <label for="base-dataset">基础数据集版本</label>
+    <select id="base-dataset">
+      <option value="">选择基础数据集</option>
+      {% for dataset in datasets if dataset.role == 'base' %}
+      <option value="{{ dataset.id }}">{{ dataset.id }}</option>
+      {% endfor %}
+    </select>
+    <label for="production-cases-dataset">生产 case 数据集版本</label>
+    <select id="production-cases-dataset">
+      <option value="">选择生产 case 数据集</option>
+      {% for dataset in datasets if dataset.role == 'production_cases' %}
+      <option value="{{ dataset.id }}">{{ dataset.id }}</option>
+      {% endfor %}
+    </select>
+    <label for="policy">Reckless 策略</label>
+    <select id="policy"><option value="default">默认严格策略</option></select>
+    <div id="run-start-result" class="result" aria-live="polite"></div>
+    <button id="start-run" type="button" disabled>校验并启动完整流程</button>
+  </section>
+</section>
+<section class="table-section">
+  <div class="section-heading"><h2>最近导入数据</h2></div>
+  <div class="table-scroll"><table><thead><tr><th>数据集 ID</th><th>角色</th><th>状态</th></tr></thead><tbody id="datasets-table-body">
+    {% for dataset in datasets %}<tr><td>{{ dataset.id }}</td><td>{{ dataset.role }}</td><td>{{ dataset.status }}</td></tr>{% else %}<tr><td colspan="3">暂无数据集</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<section class="table-section">
+  <div class="section-heading"><h2>最近运行</h2></div>
+  <div class="table-scroll"><table><thead><tr><th>运行 ID</th><th>状态</th><th>更新时间</th></tr></thead><tbody>
+    {% for run in runs %}<tr><td>{{ run.id }}</td><td>{{ run.state }}</td><td>{{ run.updated_at }}</td></tr>{% else %}<tr><td colspan="3">暂无运行记录</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}

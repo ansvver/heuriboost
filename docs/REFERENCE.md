@@ -575,49 +575,60 @@ Label aliases for `base_dataset.relevance`:
 | `bad` | hard-negative repair sample and suppression target |
 | `unknown` | context only; not training or acceptance input |
 
-Commands:
+### Immutable Reckless autopilot
+
+Install the package before using the immutable workflow:
 
 ```bash
-python3 plugins/heuriboost/skills/heuriboost-rag/scripts/compile_cases.py \
+python -m pip install -e plugins/heuriboost/skills/heuriboost-rag
+```
+
+Create a workspace from approved, non-empty historical gates and an anchor.
+The first command freezes every model-affecting setting in
+`output/.reckless/workspace.json`.
+
+```bash
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/reckless_autopilot.py run \
   --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
   --production-cases examples/fiqa/repair/production_cases_full.csv \
   --output-dir examples/fiqa/output \
-  --strict
+  --historical-gates /approved/history/gates.jsonl \
+  --anchor-ledger /approved/history/anchor.json
 
-python3 plugins/heuriboost/skills/heuriboost-rag/scripts/repair_reranker.py \
-  --base-dataset examples/fiqa/repair/base_dataset_minimal.csv \
-  --production-cases examples/fiqa/repair/production_cases_full.csv \
-  --output-dir examples/fiqa/output \
-  --reckless
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/reckless_autopilot.py report \
+  --run-id RUN_ID --output-dir examples/fiqa/output --locale zh-CN
 
-python3 plugins/heuriboost/skills/heuriboost-rag/scripts/promote_repair.py \
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/reckless_autopilot.py promote \
+  --run-id RUN_ID --output-dir examples/fiqa/output --approved-by maintainer
+```
+
+`run` returns `READY_FOR_PROMOTION` only when full acceptance, every current
+case, historical gates, global nDCG/MRR improvement, touched-domain
+non-regression, and artifact verification all pass. `weak` always becomes a
+non-promotable, non-zero result. `resume` is only valid for an `INTERRUPTED`
+run with matching frozen inputs and execution identity.
+
+The package owns `output/.reckless/runs/`, immutable Pre Promote reports,
+`releases/`, receipts, and the atomic `current_model.json` pointer. Promote
+revalidates server-side evidence and uses a stable per-run idempotency key.
+Anchor reset and gate retirement are not part of this workflow; perform them
+through separately audited administrative operations.
+
+Existing `repair_reranker.py --reckless` and `promote_repair.py` are thin
+compatibility adapters. They keep their old flags and `10/3` minimum-query
+defaults, but reject `--reset-anchor` and `--keep-baseline-artifacts` rather
+than reintroducing mutable writes. If an output directory contains legacy
+`.heuriboost/ledger.json`, `gates.jsonl`, or promoted samples, migrate it once
+before new Promote operations:
+
+```bash
+python3 plugins/heuriboost/skills/heuriboost-rag/scripts/migrate_reckless_state.py \
   --output-dir examples/fiqa/output
 ```
 
-Generated audit artifacts land under `output/.heuriboost/compiled/`:
-`query_doc_examples.csv`, `regression_cases.yaml`, `case_sets/`, and
-`production_cases.json`. These are not user prerequisites.
-
-Strict repair behavior:
-
-- missing anchor initializes from a base-dataset-only baseline;
-- existing anchor is reused unless `--reset-anchor` is explicit;
-- one user-visible candidate model is written under `output/models/`;
-- current production cases are added to repair training;
-- base test remains the metric-level regression suite and is not silently
-  extended with production cases;
-- historical gates are self-contained case snapshots, not base-test rows.
-
-Full acceptance is default. It requires at least one good doc in top-k, every
-bad doc outside top-k, all historical gates passing, global base-test
-`nDCG@10` and `MRR@10` both above anchor, and touched-domain metrics not below
-their domain anchor. `--acceptance-level weak` allows bad-only suppression
-checks, but the run is never promotion eligible.
-
-`promote_repair.py` refuses failed or weak runs. A successful promotion refreshes
-the repair anchor, freezes full production cases as historical gates, appends
-promoted repair samples, and writes `output/.heuriboost/current_model.json`.
-It does not mutate the user's input CSVs or deploy online.
+Migration is read-only for legacy files. It creates one hash-verified bootstrap
+release; repeating it with identical state is idempotent, while changed legacy
+state is rejected.
 
 ## Closing the loop: case_sets mining
 

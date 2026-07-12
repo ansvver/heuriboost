@@ -21,18 +21,35 @@ from pathlib import Path
 from features.registry import FeatureRegistry, Recipe
 from features.recipes import extract_all
 
-# Resolve the shipped feature_recipes.yaml relative to this file:
-#   scripts/features/__init__.py -> scripts/features -> scripts -> heuriboost-rag
-#   -> templates/feature_recipes.yaml
-_DEFAULT_YAML = (
-    Path(__file__).resolve().parent.parent.parent
-    / "templates"
-    / "feature_recipes.yaml"
-)
+def _feature_recipe_path() -> Path:
+    root = Path(__file__).resolve().parents[2]
+    for relative in (
+        "legacy_templates/feature_recipes.yaml",
+        "templates/feature_recipes.yaml",
+    ):
+        candidate = root / relative
+        if candidate.is_file():
+            return candidate.resolve()
+    raise SystemExit(f"Feature recipe source is missing below {root}")
+
+
+_trusted_recipe_path = globals().get("_HEURIBOOST_TRUSTED_RECIPE_PATH")
+_trusted_recipe_bytes = globals().get("_HEURIBOOST_TRUSTED_RECIPE_BYTES")
+if _trusted_recipe_path is not None or _trusted_recipe_bytes is not None:
+    if not isinstance(_trusted_recipe_path, (str, Path)) or not isinstance(
+        _trusted_recipe_bytes, bytes
+    ):
+        raise SystemExit("Trusted feature recipe injection is invalid")
+    FEATURE_RECIPE_PATH = Path(_trusted_recipe_path)
+else:
+    FEATURE_RECIPE_PATH = _feature_recipe_path()
 
 REGISTRY = FeatureRegistry()
 REGISTRY.register_impl("extract_all", extract_all)
-REGISTRY.load_yaml(_DEFAULT_YAML)
+if _trusted_recipe_bytes is not None:
+    REGISTRY.load_yaml_bytes(_trusted_recipe_bytes, source=FEATURE_RECIPE_PATH)
+else:
+    REGISTRY.load_yaml(FEATURE_RECIPE_PATH)
 REGISTRY.validate()
 
 

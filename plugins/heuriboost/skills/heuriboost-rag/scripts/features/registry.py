@@ -122,14 +122,39 @@ class FeatureRegistry:
         with yaml_path.open("r", encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
 
+        self._load_yaml_data(data, yaml_path)
+
+    def load_yaml_bytes(self, source_bytes: bytes, *, source: str | Path) -> None:
+        """Load a pre-read trusted recipe without reopening its path."""
+
+        if not isinstance(source_bytes, bytes):
+            raise SystemExit("Feature recipes source must be bytes")
+        try:
+            import yaml
+        except ImportError as exc:
+            raise SystemExit(
+                "PyYAML is required to load feature_recipes.yaml. "
+                "Install with: python -m pip install -r "
+                f"{SKILL_DIR / 'requirements.txt'}"
+            ) from exc
+        try:
+            data = yaml.safe_load(source_bytes)
+        except (UnicodeDecodeError, yaml.YAMLError) as exc:
+            raise SystemExit(f"Invalid feature recipes YAML: {source}") from exc
+
+        self._load_yaml_data(data, source)
+
+    def _load_yaml_data(self, data: object, source: str | Path) -> None:
+        """Validate and materialize already parsed recipe data."""
+
         if not isinstance(data, dict):
-            raise SystemExit(f"Feature recipes file must be a mapping: {yaml_path}")
+            raise SystemExit(f"Feature recipes file must be a mapping: {source}")
 
         feature_set = data.get("feature_set")
         if not isinstance(feature_set, dict):
             raise SystemExit(
                 f"feature_recipes.yaml must declare a top-level 'feature_set' "
-                f"mapping with name+version: {yaml_path}"
+                f"mapping with name+version: {source}"
             )
         self._feature_set_name = feature_set.get("name")
         self._feature_set_version = feature_set.get("version")

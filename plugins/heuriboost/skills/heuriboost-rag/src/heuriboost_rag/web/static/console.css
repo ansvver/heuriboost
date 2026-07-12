@@ -1,0 +1,33 @@
+:root { color-scheme: light; font-family: Arial, Helvetica, sans-serif; color: #18211d; background: #f7f7f8; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 0; background: #f7f7f8; }
+.app-shell { display: grid; grid-template-columns: 216px minmax(0, 1fr); min-height: 100vh; }
+.sidebar { border-right: 1px solid #c9cfca; padding: 22px 14px; background: #ffffff; }
+.wordmark { display: block; color: #18211d; font-size: 20px; font-weight: 700; text-decoration: none; margin: 0 8px 30px; }
+nav { display: grid; gap: 2px; } nav a { color: #3e4942; padding: 9px 8px; text-decoration: none; border-left: 3px solid transparent; } nav a.active { border-left-color: #087443; color: #18211d; font-weight: 700; background: #edf4ef; }
+.workspace { min-width: 0; padding: 28px clamp(18px, 3vw, 48px); }
+.page-heading, .section-heading { border-bottom: 1px solid #c9cfca; padding-bottom: 14px; margin-bottom: 18px; } h1, h2, p { margin: 0; } h1 { font-size: 26px; font-weight: 700; } h2 { font-size: 16px; font-weight: 700; } .page-heading p { margin-top: 6px; color: #58635c; }
+.workflow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 30px; }
+.panel { display: grid; gap: 10px; border: 1px solid #b9c1bb; border-radius: 6px; padding: 18px; background: #ffffff; align-content: start; }
+label { font-size: 14px; font-weight: 700; } input, select, button { min-height: 38px; width: 100%; font: inherit; border-radius: 4px; } input, select { border: 1px solid #9ea8a0; padding: 7px 8px; background: #ffffff; } button { border: 1px solid #087443; background: #087443; color: #ffffff; padding: 7px 12px; cursor: pointer; } button:disabled { border-color: #9ea8a0; background: #e3e7e4; color: #68736b; cursor: not-allowed; }
+.result { min-height: 20px; color: #3e4942; font-size: 14px; overflow-wrap: anywhere; } .result.error { color: #a23026; }
+.table-section { border-top: 1px solid #c9cfca; padding-top: 18px; } .table-scroll { overflow-x: auto; } table { width: 100%; border-collapse: collapse; background: #ffffff; } th, td { text-align: left; border: 1px solid #c9cfca; padding: 10px; font-size: 14px; overflow-wrap: anywhere; } th { background: #edf1ee; font-weight: 700; }
+.run-layout { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; align-items: start; }
+.run-main, .stage-details { display: grid; gap: 14px; min-width: 0; }
+.stage-track { position: sticky; top: 16px; margin: 0; padding: 0; list-style: none; border-top: 1px solid #c9cfca; background: #ffffff; }
+.stage-track li { border-bottom: 1px solid #c9cfca; }
+.stage-track a { display: grid; gap: 3px; padding: 11px 8px; color: #18211d; text-decoration: none; }
+.stage-track a:hover, .stage-track a:focus { background: #edf4ef; outline: 2px solid transparent; }
+.stage-track small { color: #58635c; font-size: 12px; }
+.stage-card { scroll-margin-top: 18px; display: grid; gap: 12px; border: 1px solid #b9c1bb; border-radius: 6px; padding: 16px; background: #ffffff; }
+.stage-card header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.stage-card h3 { margin: 0 0 5px; font-size: 16px; }
+.stage-card header p, .empty-state { color: #58635c; font-size: 14px; }
+.stage-card header strong { white-space: nowrap; color: #087443; }
+.metadata-grid, dl { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 8px; margin: 0; }
+dd { margin: 0; overflow-wrap: anywhere; }
+.button-link { display: inline-block; width: auto; border: 1px solid #087443; border-radius: 4px; background: #087443; color: #ffffff; padding: 8px 12px; text-decoration: none; }
+details { border: 1px solid #d6dcd8; border-radius: 4px; padding: 10px 12px; background: #fafbfa; }
+summary { cursor: pointer; font-weight: 700; }
+pre { max-height: 360px; overflow: auto; margin: 10px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.45; }
+@media (max-width: 800px) { .app-shell { grid-template-columns: 1fr; } .sidebar { border-right: 0; border-bottom: 1px solid #c9cfca; padding: 14px; } .wordmark { margin-bottom: 12px; } nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .workspace { padding: 18px; } .workflow-grid, .run-layout { grid-template-columns: 1fr; } .stage-track { position: static; } }

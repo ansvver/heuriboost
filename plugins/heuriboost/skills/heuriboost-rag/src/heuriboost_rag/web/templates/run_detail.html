@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-heading"><div><h1>训练运行</h1><p>{{ run.id }}</p></div><strong>{{ run.state }}</strong></header>
+<section class="run-layout" data-run-id="{{ run.id }}">
+  <ol class="stage-track" aria-label="Reckless 阶段">
+    {% for stage in run.stage_sections %}
+    <li><a href="#{{ stage.id }}"><span>{{ stage.title }}</span><small>{{ stage.status }}</small></a></li>
+    {% endfor %}
+  </ol>
+  <section class="run-main">
+    <section class="panel">
+      <h2>当前状态</h2>
+      <p id="run-status">{{ run.state }}</p>
+      <dl>
+        <dt>输入指纹</dt><dd>{{ run.input_hash }}</dd>
+        <dt>策略 hash</dt><dd>{{ run.policy_hash }}</dd>
+        <dt>任务状态</dt><dd>{{ run.job_status or '未入队' }}</dd>
+        <dt>版本</dt><dd>{{ run.version }}</dd>
+      </dl>
+    </section>
+    {% if run.error %}
+    <section class="result error">
+      <h3>阻断原因</h3>
+      <p>{{ run.error.message }}</p>
+      {% set metadata = run.error.details.get('metadata', {}) if run.error.details else {} %}
+      {% set errors = metadata.get('errors', []) if metadata else [] %}
+      {% if errors %}
+      <ul>
+        {% for error in errors[:20] %}
+        <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+      {% if errors|length > 20 %}<p>另有 {{ errors|length - 20 }} 条错误未展开。</p>{% endif %}
+      {% endif %}
+      {% if run.error.operator_action %}<p>{{ run.error.operator_action }}</p>{% endif %}
+    </section>
+    {% endif %}
+    <section class="stage-details" aria-label="阶段详情">
+      {% for stage in run.stage_sections %}
+      <article class="stage-card" id="{{ stage.id }}">
+        <header>
+          <div>
+            <h3>{{ stage.title }}</h3>
+            <p>{{ stage.description }}</p>
+          </div>
+          <strong>{{ stage.status }}</strong>
+        </header>
+        {% if stage.link %}
+        <p><a class="button-link" href="{{ stage.link.href }}">{{ stage.link.label }}</a></p>
+        {% endif %}
+        {% if stage.summary_items %}
+        <dl class="metadata-grid">
+          {% for item in stage.summary_items %}
+          <dt>{{ item.label }}</dt><dd>{{ item.value }}</dd>
+          {% endfor %}
+        </dl>
+        {% endif %}
+        {% if stage.artifacts %}
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>artifact</th><th>路径</th><th>大小</th><th>hash</th></tr></thead>
+            <tbody>
+              {% for artifact in stage.artifacts %}
+              <tr>
+                <td>{{ artifact.artifact_type or '-' }}</td>
+                <td>{{ artifact.path or '-' }}</td>
+                <td>{{ artifact.size_bytes or '-' }}</td>
+                <td>{{ artifact.content_hash or '-' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+        {% if stage.data_json %}
+        <details>
+          <summary>原始详情 JSON</summary>
+          <pre>{{ stage.data_json }}</pre>
+        </details>
+        {% else %}
+        <p class="empty-state">暂无该阶段的 metadata；如果运行还没到这里，这是正常的。</p>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </section>
+    <div id="run-events" aria-live="polite"></div>
+  </section>
+</section>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h1>数据集</h1>
+  <table>
+    <thead><tr><th>ID</th><th>角色</th><th>状态</th><th>行数</th><th>Hash</th></tr></thead>
+    <tbody>
+    {% for dataset in datasets %}
+      <tr>
+        <td>{{ dataset.id }}</td>
+        <td>{{ dataset.role }}</td>
+        <td>{{ dataset.status }}</td>
+        <td>{{ dataset.metadata.rows }}</td>
+        <td>{{ dataset.semantic_hash }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
